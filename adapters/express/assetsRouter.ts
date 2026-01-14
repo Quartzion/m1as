@@ -23,7 +23,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
         const file = req.file;
         if (!file) return res.status(400).json({ error: "No file uploaded in field 'file'" });
 
-              // 🔍 Detect real file type from buffer
+      // Detect real file type from buffer
       const detectedType = await fileTypeFromBuffer(file.buffer);
 
       const mimeType =
@@ -56,7 +56,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
       const asset = await assetManager.get(req.params.id);
       if (!asset) return res.status(404).json({ error: "Not found" });
 
-      res.json(asset); // JSON metadata
+      res.json(asset);
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ error: err.message });
