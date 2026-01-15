@@ -16,6 +16,4 @@ export class MongoAssetRepo implements AssetRepository {
   async deleteById(id: string): Promise<void> {
     await AssetModel.deleteOne({ id }).exec();
   }
-
-  // Optional: additional query helpers for ownerId, visibility, etc.
 }

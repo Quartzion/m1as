@@ -2,6 +2,12 @@ import express, { Request, Response, Router } from "express";
 import { fileTypeFromBuffer } from "file-type";
 import multer from "multer";
 import { AssetManager } from "../../core/assets/assetManager.js";
+import { m1asConfig } from "../../config/m1asConfig.js"
+
+// check for m1as config
+if (m1asConfig.maxFileSizeBytes <= 0) {
+  throw new Error("Invalid M1AS_MAX_FILE_SIZE_BYTES");
+}
 
 export interface AssetRouterOptions {
   assetManager: AssetManager;
@@ -10,37 +16,63 @@ export interface AssetRouterOptions {
 
 export function createAssetRouter(options: AssetRouterOptions): Router {
   const router = express.Router();
-  const upload = multer(); // memory storage; buffer passed to core
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: m1asConfig.maxFileSizeBytes || 10 * 1024 * 1024, // 10 MB
+      files: 1,
+      fields: 0,                 // no non-file fields allowed
+      fieldNameSize: 100,
+      fieldSize: 0,
+    },
+  });
 
   const { assetManager, getOwnerId } = options;
 
   // Upload endpoint
   router.post(
     "/",
-    upload.single("file"),
+    (req, res, next) => {
+      upload.single("file")(req, res, (err) => {
+        if (err) {
+          if (err instanceof multer.MulterError) {
+            return res.status(400).json({ error: err.message });
+          }
+          return res.status(400).json({ error: "Invalid multipart request" });
+        }
+        next();
+      });
+    },
     async (req: Request, res: Response) => {
       try {
         const file = req.file;
         if (!file) return res.status(400).json({ error: "No file uploaded in field 'file'" });
 
-      // Detect real file type from buffer
-      const detectedType = await fileTypeFromBuffer(file.buffer);
+        // Reject unexpected multipart fields
+        if (req.body && Object.keys(req.body).length > 0) {
+          return res.status(400).json({
+            error: "Unexpected form fields provided",
+          });
+        }
 
-      const mimeType =
-        detectedType?.mime ?? file.mimetype ?? "application/octet-stream";
+        // Detect real file type from buffer
+        const detectedType = await fileTypeFromBuffer(file.buffer);
 
-      const filename =
-        detectedType?.ext && !file.originalname.includes(".")
-          ? `${file.originalname}.${detectedType.ext}`
-          : file.originalname;
+        const mimeType =
+          detectedType?.mime ?? file.mimetype ?? "application/octet-stream";
 
-      const asset = await assetManager.upload({
-        buffer: file.buffer,
-        filename,
-        mimeType,
-        size: file.size,
-        ownerId: getOwnerId?.(req),
-      });
+        const filename =
+          detectedType?.ext && !file.originalname.includes(".")
+            ? `${file.originalname}.${detectedType.ext}`
+            : file.originalname;
+
+        const asset = await assetManager.upload({
+          buffer: file.buffer,
+          filename,
+          mimeType,
+          size: file.size,
+          ownerId: getOwnerId?.(req),
+        });
 
         res.json(asset);
       } catch (err: any) {
