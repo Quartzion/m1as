@@ -6,6 +6,7 @@ import {
 } from "./contracts.js";
 import { AssetRecord } from "./types.js";
 import { randomUUID } from "crypto";
+import { m1asConfig } from "../../config/m1asConfig.js";
 
 export class AssetManager {
   constructor(
@@ -14,17 +15,63 @@ export class AssetManager {
     private cache?: AssetCache
   ) { }
 
+  // ===== PRIVATE VALIDATION =====
+  private validateUpload(input: AssetUploadInput) {
+    // Buffer checks
+    if (!input.buffer || input.buffer.length === 0) {
+      throw new Error("Asset buffer is required");
+    }
+
+    // Filename checks
+    if (!input.filename || input.filename.trim() === "") {
+      throw new Error("Filename is required");
+    }
+    if (input.filename.includes("..") || input.filename.includes("/")) {
+      throw new Error("Invalid filename (path traversal not allowed)");
+    }
+    if (input.filename.length > 255) {
+      throw new Error("Filename too long (max 255 characters)");
+    }
+
+    // MIME type allowlist
+    const allowedMimeTypes = m1asConfig.allowedMimeTypes || [
+      "image/png",
+      "image/jpeg",
+      "image/webp"
+    ];
+    if (!input.mimeType || !allowedMimeTypes.includes(input.mimeType)) {
+      throw new Error(`MIME type not allowed: ${input.mimeType}`);
+    }
+
+    // Size checks
+    if (!input.size || input.size <= 0) {
+      throw new Error("Invalid file size");
+    }
+    if (input.size !== input.buffer.length) {
+      throw new Error("File size mismatch");
+    }
+    const maxFileSize = m1asConfig.maxFileSizeBytes || 10 * 1024 * 1024;
+    if (input.size > maxFileSize) {
+      throw new Error(`File exceeds maximum size of ${maxFileSize} bytes`);
+    }
+  }
+
+  // ===== PUBLIC METHODS =====
   async upload(input: AssetUploadInput): Promise<AssetRecord> {
-    // validation lives here
+    // enforce validation first
+    this.validateUpload(input);
+
     const id = randomUUID();
     const now = new Date();
 
+    // Save to storage (only after validation passes)
     const stored = await this.storage.save({
       buffer: input.buffer,
       filename: input.filename,
       mimeType: input.mimeType
     });
 
+    // Construct asset record
     const asset: AssetRecord = {
       id,
       filename: input.filename,
@@ -38,8 +85,10 @@ export class AssetManager {
       updatedAt: now
     };
 
+    // Persist to repository
     const saved = await this.repository.create(asset);
 
+    // Cache for fast retrieval
     await this.cache?.set(saved);
 
     return saved;
@@ -61,7 +110,7 @@ export class AssetManager {
     const asset = await this.get(id); // use existing public get()
     if (!asset) return null;
 
-    // storage is private but accessible here
+    // Retrieve file from storage
     return this.storage.get(asset.storagePath);
   }
 
