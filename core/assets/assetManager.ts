@@ -54,6 +54,16 @@ export class AssetManager {
     if (input.size > maxFileSize) {
       throw new Error(`File exceeds maximum size of ${maxFileSize} bytes`);
     }
+
+    // OwnerId checks (optional, but must be valid if provided)
+    if (input.ownerId !== undefined) {
+      if (
+        typeof input.ownerId !== "string" ||
+        input.ownerId.trim() === ""
+      ) {
+        throw new Error("ownerId must be a non-empty string if provided");
+      }
+    }
   }
 
   // ===== PUBLIC METHODS =====

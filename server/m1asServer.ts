@@ -35,13 +35,42 @@ async function startServer() {
     "/assets",
     createAssetRouter({
       assetManager,
-      getOwnerId: (req) => req.headers["x-user-id"] as string | undefined,
+      getOwnerId: (req) => {
+        const raw = req.headers["x-user-id"];
+
+        if (Array.isArray(raw)) {
+          throw new Error("Multiple x-user-id headers are not allowed");
+        }
+
+        if (raw === undefined || raw.trim() === "") {
+          throw new Error("x-user-id header is required");
+        }
+
+        return raw;
+      }
+
     })
   );
-
   // 5.b JSON Asset API
   app.use(express.json({ limit: "3mb" }));
-  app.use("/assets/json", createJsonAssetRouter({ assetManager }));
+  app.use("/assets/json",
+    createJsonAssetRouter({
+      assetManager,
+      getOwnerId: (req) => {
+        const raw = req.headers["x-user-id"];
+
+        if (Array.isArray(raw)) {
+          throw new Error("Multiple x-user-id headers are not allowed");
+        }
+
+        if (raw === undefined || raw.trim() === "") {
+          throw new Error("x-user-id header is required");
+        }
+
+        return raw;
+      }
+    })
+  );
 
   // 6. Health check
   app.get("/health", (_req, res) => {
