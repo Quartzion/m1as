@@ -21,9 +21,9 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
     limits: {
       fileSize: m1asConfig.maxFileSizeBytes || 10 * 1024 * 1024, // 10 MB
       files: 1,
-      fields: 0,                 // no non-file fields allowed
+      fields: m1asConfig.multiPartFormFields || 0,  // Number of non-file fields allowed (0 = no metadata fields)
       fieldNameSize: 100,
-      fieldSize: 0,
+      fieldSize: m1asConfig.multiPartFieldSizeBytes || 256,
     },
   });
 
@@ -48,8 +48,9 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
         const file = req.file;
         if (!file) return res.status(400).json({ error: "No file uploaded in field 'file'" });
 
-        // Reject unexpected multipart fields
-        if (req.body && Object.keys(req.body).length > 0) {
+        // Reject unexpected multipart fields 
+        const multiPartFormFields = m1asConfig.multiPartFormFields
+        if (req.body && Object.keys(req.body).length > multiPartFormFields) {
           return res.status(400).json({
             error: "Unexpected form fields provided",
           });
@@ -65,6 +66,8 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
           detectedType?.ext && !file.originalname.includes(".")
             ? `${file.originalname}.${detectedType.ext}`
             : file.originalname;
+        
+        const visibility = req.body?.visibility === "public" ? "public" : "private";
 
         const asset = await assetManager.upload({
           buffer: file.buffer,
@@ -72,6 +75,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
           mimeType,
           size: file.size,
           ownerId: getOwnerId?.(req),
+          visibility,
         });
 
         res.json(asset);

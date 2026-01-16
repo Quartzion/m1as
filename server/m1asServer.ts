@@ -4,6 +4,7 @@ import express from "express";
 
 import { AssetManager } from "../core/assets/assetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
+import { createJsonAssetRouter } from "../adapters/express/jsonAssetRouter.js";
 import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
 import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js"; // new adapter
 
@@ -37,6 +38,10 @@ async function startServer() {
       getOwnerId: (req) => req.headers["x-user-id"] as string | undefined,
     })
   );
+
+  // 5.b JSON Asset API
+  app.use(express.json({ limit: "3mb" }));
+  app.use("/assets/json", createJsonAssetRouter({ assetManager }));
 
   // 6. Health check
   app.get("/health", (_req, res) => {
