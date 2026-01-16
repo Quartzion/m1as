@@ -51,7 +51,8 @@ async function startServer() {
   // 7. Start server
   app.listen(PORT, () => {
     console.log(`Asset server running on http://localhost:${PORT}`);
-    console.log(`POST files to http://localhost:${PORT}/assets`);
+    console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
+    console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
     console.log(`Health check available at http://localhost:${PORT}/health`);
   });
 }

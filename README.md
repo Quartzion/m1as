@@ -147,15 +147,58 @@ npm run m1asTest
 ```
 
 ---
+# Operation Notes
+- there are 2 adapters for uploading files. 
+     - **assetRouter** has been developed to leverage multipart forms intentionally to improve support for larger file uploads.
+     - **jsonAssetRouter** has been developed to send JSON payloads intentionally to improve support for smaller file uploads and MERN integration.  
+- **m1asConfig** is used for setting environment variables for customizability. m1asConfig maintains the following values:
+     - maxFileSizeBytes
+     - allowedMimeTypes
+     - maxJsonUploadBytes
+     - multiPartFormFields
+     - multiPartFieldSizeBytes
+- **visibility defaults to prvate** 
+     - when a file is uploaded and the visibility is not set to public, the visibility will default to private. 
+     - In order to set the visibility to public via the API, use the jsonAssetRouter with the JSON body demonstrated later below.
+     - To use the multipart form (assetsRouter) an additional form field will need to be enabled via the configuration of M1AS_MULTIPART_FORM_FIELDS in the environment variables. 
+     - **Note** M1AS_MULTIPART_FIELD_SIZE_BYTES should also be set appropriately to accomodate for additional form fields. 
+     - The demo version of m1as has been developed to operate with M1AS_MULTIPART_FIELD_SIZE_BYTES=256 and M1AS_MULTIPART_FORM_FIELDS=0. 
+- **setting visibility to public with the multipart form assetRouter** make the following adjustments to the environment variables.
+     - set M1AS_MULTIPART_FORM_FIELDS=1 (to allow an additional form field)
+     - set M1AS_MULTIPART_FIELD_SIZE_BYTES=256 
+     - send the following curl
+    ```ruby
+    curl -v -X POST http://localhost:${PORT}$/assets \
+      -H "x-user-id: ANY-USER-123" \
+      -F "file=@C:<your-filepath>/<your-file>.png"\
+      -F "visibility=public"
+    ```
+- the **data** key of the JSON payload MUST be the **base64** value of the file for uploading via **jsonAssetRouter**
+     - gitbash
+     ```ruby
+     base64 -w 0 C:<filepath>/<filename-with-extension>
+     ```   
+---
 
 ## how to evaluate
 1. open a gitbash terminal and execute the npm scripts listed in the Getting Started section
 2. after m1as is running the service should report ok status on the health check http://localhost:${PORT}$/health
 3. Files can be uploaded by opening an auxillary gitbash terminal and executing the following curl:
+<!-- multipart form -->
 ```ruby
-curl -v -X POST http://localhost:${PORT}$/assets \
+curl -v -X POST http://localhost:<PORT>/assets \
   -H "x-user-id: ANY-USER-123" \
   -F "file=@C:<your-filepath>/<your-file>.png"
+```
+<!-- JSON body -->
+```ruby
+# POST http://localhost:<PORT>/assets/json
+{
+  "filename": "json-test.png",
+  "mimeType": "image/png",
+  "visibility": "public",
+	"data": "<base64-image>"
+}
 ```
 4. files can be retrieved by navigating to the following url
 ```ruby
@@ -167,7 +210,15 @@ http://localhost:<PORT>/assets/<id>
 ```
 6. to delete a file execute the following curl
 ```ruby
-curl -v -X DELETE http://localhost:${PORT}$/assets/<id> \
+curl -v -X DELETE http://localhost:<PORT>/assets/<id> \
+```
+7. m1as configuration settings should be handled in the .env file. The m1as demo configuration is the following:
+```ruby
+M1AS_MAX_FILE_SIZE_BYTES=10485760
+M1AS_MAX_JSON_UPLOAD_BYTES=2097152
+M1AS_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp,image/gif
+M1AS_MULTIPART_FORM_FIELDS=0
+M1AS_MULTIPART_FIELD_SIZE_BYTES=256
 ```
 ---
 
@@ -213,12 +264,15 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 ```ruby
 ├─ adapters/
 |  └─ express/
-│     ├─ assetRouter.ts
+│     ├─ assetRouter.ts        ← multipart form adapter
+│     ├─ jsonAssetRouter.ts    ← json adapter
 │     └─ index.ts
 │
+├─ config/
+|  └─ m1asConfig.ts            ← configuration settings
 ├─ core/
 |  └─ assets/
-│     ├─ assetManager.ts        ← storage + validation
+│     ├─ assetManager.ts       ← storage + validation
 │     ├─ mongoAssetRepo.ts     ← MongoDB logic
 │     ├─ index.ts
 │     ├─ mongooseModels.ts
@@ -226,18 +280,22 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 │     └─ types.ts
 │
 ├─ server/
-│  ├─ inMemoryAssetRepo.ts   ← m1as 1 (a)
-│  └─ m1asServer.ts
+│  ├─ inMemoryAssetRepo.ts      ← m1as 1 (a)
+│  ├─ m1asServer.ts
 |  └─ db/
 │     └─ mongoClient.ts  
 │
 ├─ storage/
+|  ├─ disk
+│  |  ├─ index.ts   
+│  |  └─ diskStorageAdapter.ts   ← currently disabled. Demo m1as is designed for mongo data storage.    
 │  └─ mongo/
-│     ├─ index.ts   ← m1as 1 (a)
-│     └─ mongoStorageAdapter.ts  
+│     ├─ index.ts                
+│     └─ mongoStorageAdapter.ts  ← Demo m1as enabled storage adapter. 
 │
 │
 ├─ .gitignore
+├─ .env
 ├─ LICENSE
 ├─ package.json
 ├─ README.md
