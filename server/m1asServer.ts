@@ -36,14 +36,14 @@ async function startServer() {
     createAssetRouter({
       assetManager,
       getOwnerId: (req) => {
-        const raw = req.headers["x-user-id"];
+        const raw = req.headers["m1as-user-id"];
 
         if (Array.isArray(raw)) {
-          throw new Error("Multiple x-user-id headers are not allowed");
+          throw new Error("Multiple m1as-user-id headers are not allowed");
         }
 
         if (raw === undefined || raw.trim() === "") {
-          throw new Error("x-user-id header is required");
+          throw new Error("m1as-user-id header is required");
         }
 
         return raw;
@@ -57,14 +57,14 @@ async function startServer() {
     createJsonAssetRouter({
       assetManager,
       getOwnerId: (req) => {
-        const raw = req.headers["x-user-id"];
+        const raw = req.headers["m1as-user-id"];
 
         if (Array.isArray(raw)) {
-          throw new Error("Multiple x-user-id headers are not allowed");
+          throw new Error("Multiple m1as-user-id headers are not allowed");
         }
 
         if (raw === undefined || raw.trim() === "") {
-          throw new Error("x-user-id header is required");
+          throw new Error("m1as-user-id header is required");
         }
 
         return raw;

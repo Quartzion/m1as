@@ -169,7 +169,7 @@ npm run m1asTest
      - send the following curl
     ```ruby
     curl -v -X POST http://localhost:${PORT}$/assets \
-      -H "x-user-id: ANY-USER-123" \
+      -H "m1as-user-id: ANY-USER-123" \
       -F "file=@C:<your-filepath>/<your-file>.png"\
       -F "visibility=public"
     ```
@@ -187,7 +187,7 @@ npm run m1asTest
 <!-- multipart form -->
 ```ruby
 curl -v -X POST http://localhost:<PORT>/assets \
-  -H "x-user-id: ANY-USER-123" \
+  -H "m1as-user-id: ANY-USER-123" \
   -F "file=@C:<your-filepath>/<your-file>.png"
 ```
 <!-- JSON body -->
