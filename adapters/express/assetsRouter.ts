@@ -66,7 +66,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
           detectedType?.ext && !file.originalname.includes(".")
             ? `${file.originalname}.${detectedType.ext}`
             : file.originalname;
-        
+
         const visibility = req.body?.visibility === "public" ? "public" : "private";
 
         const asset = await assetManager.upload({
@@ -116,8 +116,16 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
 
   // Delete asset
   router.delete("/:id", async (req: Request, res: Response) => {
+
+    const result = await assetManager.delete(req.params.id);
+    if (result === "not_found") {
+      return res.status(200).json({
+        deleted: "false",
+        reason: "File not found"
+      });
+    }
     try {
-      await assetManager.delete(req.params.id);
+      result; 
       res.json({ success: true });
     } catch (err: any) {
       console.error(err);

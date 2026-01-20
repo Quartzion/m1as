@@ -142,12 +142,16 @@ export class AssetManager {
     return this.storage.get(asset.storagePath);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<"deleted" | "not_found"> {
     const asset = await this.repository.findById(id);
-    if (!asset) return;
+    if (!asset) {
+      return "not_found";
+    }
 
     await this.storage.delete(asset.storagePath);
     await this.repository.deleteById(id);
     await this.cache?.delete(id);
+    
+    return "deleted"
   }
 }
