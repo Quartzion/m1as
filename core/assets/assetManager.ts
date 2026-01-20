@@ -128,7 +128,11 @@ export class AssetManager {
 
     const asset = await this.repository.findById(id);
     if (asset) {
-      await this.cache?.set(asset);
+      try {
+        await this.cache?.set(asset);
+      } catch (cacheErr) {
+        console.warn("Failed to refresh cache after get():", cacheErr);
+      }
     }
 
     return asset;
@@ -151,7 +155,7 @@ export class AssetManager {
     await this.storage.delete(asset.storagePath);
     await this.repository.deleteById(id);
     await this.cache?.delete(id);
-    
+
     return "deleted"
   }
 }
