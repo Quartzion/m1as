@@ -68,40 +68,58 @@ export class AssetManager {
 
   // ===== PUBLIC METHODS =====
   async upload(input: AssetUploadInput): Promise<AssetRecord> {
-    // enforce validation first
     this.validateUpload(input);
 
     const id = randomUUID();
     const now = new Date();
 
-    // Save to storage (only after validation passes)
-    const stored = await this.storage.save({
-      buffer: input.buffer,
-      filename: input.filename,
-      mimeType: input.mimeType
-    });
+    let stored;
 
-    // Construct asset record
-    const asset: AssetRecord = {
-      id,
-      filename: input.filename,
-      mimeType: input.mimeType,
-      size: input.size,
-      storagePath: stored.storagePath,
-      publicUrl: stored.publicUrl,
-      ownerId: input.ownerId,
-      visibility: input.visibility ?? "private",
-      createdAt: now,
-      updatedAt: now
-    };
+    try {
+      // Save file bytes first
+      stored = await this.storage.save({
+        buffer: input.buffer,
+        filename: input.filename,
+        mimeType: input.mimeType
+      });
 
-    // Persist to repository
-    const saved = await this.repository.create(asset);
+      // Construct asset record
+      const asset: AssetRecord = {
+        id,
+        filename: input.filename,
+        mimeType: input.mimeType,
+        size: input.size,
+        storagePath: stored.storagePath,
+        publicUrl: stored.publicUrl,
+        ownerId: input.ownerId,
+        visibility: input.visibility ?? "private",
+        createdAt: now,
+        updatedAt: now
+      };
 
-    // Cache for fast retrieval
-    await this.cache?.set(saved);
+      // Attempt repo write
+      const saved = await this.repository.create(asset);
 
-    return saved;
+      try {
+        // Cache for fast retrieval
+        await this.cache?.set(saved);
+
+      } catch (casheError) {
+        console.warn("cache write fialed", casheError)
+      }
+
+      return saved;
+    } catch (err) {
+      // If storage succeeded but repo failed, delete storage
+      if (stored) {
+        try {
+          await this.storage.delete(stored.storagePath);
+        } catch (cleanupErr) {
+          console.error("Failed to rollback storage after repo failure:", cleanupErr);
+        }
+      }
+      throw err; // propagate original error
+    }
   }
 
   async get(id: string): Promise<AssetRecord | null> {

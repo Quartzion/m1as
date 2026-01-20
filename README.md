@@ -168,7 +168,7 @@ npm run m1asTest
      - set M1AS_MULTIPART_FIELD_SIZE_BYTES=256 
      - send the following curl
     ```ruby
-    curl -v -X POST http://localhost:${PORT}$/assets \
+  curl -v -X POST http://localhost:<PORT>/assets \
       -H "m1as-user-id: ANY-USER-123" \
       -F "file=@C:<your-filepath>/<your-file>.png"\
       -F "visibility=public"
@@ -182,7 +182,7 @@ npm run m1asTest
 
 ## how to evaluate
 1. open a gitbash terminal and execute the npm scripts listed in the Getting Started section
-2. after m1as is running the service should report ok status on the health check http://localhost:${PORT}$/health
+2. after m1as is running the service should report ok status on the health check http://localhost:<PORT>/health
 3. Files can be uploaded by opening an auxillary gitbash terminal and executing the following curl:
 <!-- multipart form -->
 ```ruby
