@@ -4,7 +4,7 @@ import { AssetRecord } from "./types.js";
 export interface AssetDoc extends AssetRecord, Document {}
 
 const AssetSchema = new Schema<AssetDoc>({
-  id: { type: String, required: true, unique: true },
+  id: { type: String, required: true, unique: true, immutable: true },
   filename: { type: String, required: true, maxlength: 255 },
   mimeType: { type: String, required: true, maxlength: 100 },
   size: { type: Number, required: true },
@@ -16,6 +16,7 @@ const AssetSchema = new Schema<AssetDoc>({
   updatedAt: { type: Date, required: true },
 });
 
+AssetSchema.index({ id: 1 }, { unique: true });
 AssetSchema.index({ ownerId: 1 });
 AssetSchema.index({ visibility: 1 });
 
