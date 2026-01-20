@@ -280,19 +280,14 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 │     └─ types.ts
 │
 ├─ server/
-│  ├─ inMemoryAssetRepo.ts      ← m1as 1 (a)
 │  ├─ m1asServer.ts
 |  └─ db/
 │     └─ mongoClient.ts  
 │
-├─ storage/
-|  ├─ disk
-│  |  ├─ index.ts   
-│  |  └─ diskStorageAdapter.ts   ← currently disabled. Demo m1as is designed for mongo data storage.    
+├─ storage/  
 │  └─ mongo/
 │     ├─ index.ts                
-│     └─ mongoStorageAdapter.ts  ← Demo m1as enabled storage adapter. 
-│
+│     └─ mongoStorageAdapter.ts  ← m1as storage adapter. 
 │
 ├─ .gitignore
 ├─ .env
