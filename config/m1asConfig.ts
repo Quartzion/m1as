@@ -8,5 +8,8 @@ export const m1asConfig = {
   multiPartFieldSizeBytes: Number(
     process.env.M1AS_MULTIPART_FIELD_SIZE_BYTES ?? 0
   ),
+  logger: process.env.M1AS_LOGGER ?? "console",
+  logFile: process.env.M1AS_LOG_FILE,
+  m1asServerPort: Number(process.env.M1AS_SERVER_PORT ?? 3000)
 };
 

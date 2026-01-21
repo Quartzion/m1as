@@ -6,9 +6,11 @@ import { AssetManager } from "../core/assets/assetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
 import { createJsonAssetRouter } from "../adapters/express/jsonAssetRouter.js";
 import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
-import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js"; // new adapter
+import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
+import { createLogger } from "../core/logging/createLogger.js"
+import { m1asConfig } from "../config/m1asConfig.js"
 
-const PORT = 3000;
+const PORT = m1asConfig.m1asServerPort;
 
 async function startServer() {
   // 1. Connect to Mongo
@@ -26,9 +28,18 @@ async function startServer() {
   // 3. Mongo-backed storage & repository
   const storage = new MongoStorageAdapter(); // stores actual file bytes in Mongo (GridFS)
   const repository = new MongoAssetRepo(); // stores metadata
+  const cache = undefined;
+  const logger = createLogger(m1asConfig.logger, {
+  filePath: m1asConfig.logFile
+  });
 
   // 4. Asset manager (core)
-  const assetManager = new AssetManager(storage, repository);
+  const assetManager = new AssetManager(
+    storage,
+    repository,
+    cache,
+    logger
+    );
 
   // 5. Asset API
   app.use(

@@ -9,7 +9,7 @@ import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { error } from "console";
 
-export interface assetManagerLogger {
+export interface m1asLogger {
   (log: Record<string, any>): void;
 }
 
@@ -18,7 +18,7 @@ export class AssetManager {
     private storage: AssetStorageAdapter,
     private repository: AssetRepository,
     private cache?: AssetCache,
-    private logger?: assetManagerLogger
+    private logger?: m1asLogger
   ) {}
 
   private log(event: Record<string, any>) {
