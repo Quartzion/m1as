@@ -30,7 +30,8 @@ async function startServer() {
   const repository = new MongoAssetRepo(); // stores metadata
   const cache = undefined;
   const logger = createLogger(m1asConfig.logger, {
-  filePath: m1asConfig.logFile
+  filePath: m1asConfig.logFile,
+  level: m1asConfig.logLevel as any
   });
 
   // 4. Asset manager (core)

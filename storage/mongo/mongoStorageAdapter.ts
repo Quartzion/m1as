@@ -19,7 +19,7 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
     }
     this.bucket = new mongoose.mongo.GridFSBucket(db, {
       bucketName: "assets",
-      writeConcern: {w: "majority"}
+      writeConcern: { w: "majority" }
     });
   }
 
@@ -39,10 +39,10 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
       readable.pipe(uploadStream)
         .on("error", async (err) => {
           try {
-            if(fileId) {
+            if (fileId) {
               await this.bucket.delete(fileId);
             }
-          } catch {} 
+          } catch { }
           reject(err);
         })
         .on("finish", () => {
@@ -82,16 +82,20 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
   // Delete file from GridFS
   async delete(id: string): Promise<void> {
     const _id = new ObjectId(id);
+
     try {
-          await this.bucket.delete(_id);
-        } catch (err: any) {
-          if( 
-            err?.code === 26 ||
-            err?.message?.includes("fileNotFound")
-          ){
-            return;
-          }
+      await this.bucket.delete(_id);
+    } catch (err: any) {
+      // GridFS throws if file does not exist
+      if (
+        err?.code === 26 || // NamespaceNotFound
+        err?.message?.includes("File not found")
+      ) {
+        return; // idempotent success
+      }
+
       throw err;
     }
   }
+
 }

@@ -7,11 +7,8 @@ import {
 import { AssetRecord } from "./types.js";
 import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
+import { m1asLogger } from "../logging/createLogger.js";
 import { error } from "console";
-
-export interface m1asLogger {
-  (log: Record<string, any>): void;
-}
 
 export class AssetManager {
   constructor(
@@ -19,10 +16,10 @@ export class AssetManager {
     private repository: AssetRepository,
     private cache?: AssetCache,
     private logger?: m1asLogger
-  ) {}
+  ) { }
 
   private log(event: Record<string, any>) {
-    if(this.logger) {
+    if (this.logger) {
       try {
         this.logger(event);
       } catch (err) {
@@ -124,7 +121,7 @@ export class AssetManager {
         this.log({ event: "CACHE_FAIL", assetId: id, error: err.message });
       }
 
-        this.log({
+      this.log({
         event: "UPLOAD_SUCCESS",
         assetId: id,
         filename: input.filename,
@@ -135,7 +132,7 @@ export class AssetManager {
       });
 
       return saved;
-    } catch (err : any) {
+    } catch (err: any) {
       // If storage succeeded but repo failed, delete storage
       if (stored) {
         try {
@@ -145,7 +142,7 @@ export class AssetManager {
         }
       }
 
-        this.log({
+      this.log({
         event: "UPLOAD_FAIL",
         assetId: id,
         filename: input.filename,
@@ -153,7 +150,7 @@ export class AssetManager {
         error: err.message,
         timestamp: new Date().toISOString()
       });
-      
+
       throw err; // propagate original error
     }
   }
@@ -184,14 +181,41 @@ export class AssetManager {
 
   async delete(id: string): Promise<"deleted" | "not_found"> {
     const asset = await this.repository.findById(id);
+
     if (!asset) {
+      this.log({
+        event: "DELETE_NOT_FOUND",
+        assetId: id,
+        timestamp: new Date().toISOString()
+      });
+
       return "not_found";
     }
 
-    await this.storage.delete(asset.storagePath);
-    await this.repository.deleteById(id);
-    await this.cache?.delete(id);
+    try {
+      await this.storage.delete(asset.storagePath);
+      await this.repository.deleteById(id);
+      await this.cache?.delete(id);
 
-    return "deleted"
+      this.log({
+        event: "DELETE_SUCCESS",
+        assetId: id,
+        ownerId: asset.ownerId,
+        visibility: asset.visibility,
+        timestamp: new Date().toISOString()
+      });
+
+      return "deleted";
+    } catch (err: any) {
+      this.log({
+        event: "DELETE_FAIL",
+        assetId: id,
+        error: err.message,
+        timestamp: new Date().toISOString()
+      });
+
+      throw err;
+    }
   }
+
 }

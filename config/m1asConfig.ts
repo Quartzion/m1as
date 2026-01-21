@@ -3,13 +3,14 @@ export const m1asConfig = {
   allowedMimeTypes: (process.env.M1AS_ALLOWED_MIME_TYPES
     ? process.env.M1AS_ALLOWED_MIME_TYPES.split(",")
     : ["image/png", "image/jpeg", "image/webp"]), // default allowlist 
-  maxJsonUploadBytes: Number(process.env.M1AS_MAX_FILE_SIZE_BYTES) ?? 2 * 1024 * 1024,
+  maxJsonUploadBytes: Number(process.env.M1AS_MAX_JSON_UPLOAD_BYTES) ?? 2 * 1024 * 1024,
   multiPartFormFields: Number(process.env.M1AS_MULTIPART_FORM_FIELDS ?? 0 ),
   multiPartFieldSizeBytes: Number(
     process.env.M1AS_MULTIPART_FIELD_SIZE_BYTES ?? 0
   ),
   logger: process.env.M1AS_LOGGER ?? "console",
   logFile: process.env.M1AS_LOG_FILE,
+  logLevel: process.env.M1AS_LOG_LEVEL,
   m1asServerPort: Number(process.env.M1AS_SERVER_PORT ?? 3000)
 };
 
