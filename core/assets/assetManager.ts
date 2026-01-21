@@ -7,13 +7,29 @@ import {
 import { AssetRecord } from "./types.js";
 import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
+import { error } from "console";
+
+export interface assetManagerLogger {
+  (log: Record<string, any>): void;
+}
 
 export class AssetManager {
   constructor(
     private storage: AssetStorageAdapter,
     private repository: AssetRepository,
-    private cache?: AssetCache
-  ) { }
+    private cache?: AssetCache,
+    private logger?: assetManagerLogger
+  ) {}
+
+  private log(event: Record<string, any>) {
+    if(this.logger) {
+      try {
+        this.logger(event);
+      } catch (err) {
+        console.error("logger failed:", err)
+      }
+    }
+  }
 
   // ===== PRIVATE VALIDATION =====
   private validateUpload(input: AssetUploadInput) {
@@ -104,12 +120,22 @@ export class AssetManager {
         // Cache for fast retrieval
         await this.cache?.set(saved);
 
-      } catch (casheError) {
-        console.warn("cache write fialed", casheError)
+      } catch (err: any) {
+        this.log({ event: "CACHE_FAIL", assetId: id, error: err.message });
       }
 
+        this.log({
+        event: "UPLOAD_SUCCESS",
+        assetId: id,
+        filename: input.filename,
+        size: input.size,
+        ownerId: input.ownerId,
+        visibility: asset.visibility,
+        timestamp: now.toISOString()
+      });
+
       return saved;
-    } catch (err) {
+    } catch (err : any) {
       // If storage succeeded but repo failed, delete storage
       if (stored) {
         try {
@@ -118,6 +144,16 @@ export class AssetManager {
           console.error("Failed to rollback storage after repo failure:", cleanupErr);
         }
       }
+
+        this.log({
+        event: "UPLOAD_FAIL",
+        assetId: id,
+        filename: input.filename,
+        ownerId: input.ownerId,
+        error: err.message,
+        timestamp: new Date().toISOString()
+      });
+      
       throw err; // propagate original error
     }
   }
