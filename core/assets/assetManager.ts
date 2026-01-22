@@ -19,7 +19,7 @@ export class AssetManager {
     private repository: AssetRepository,
     private cache?: AssetCache,
     private logger?: m1asLogger,
-  ) {}
+  ) { }
 
   private log(event: Record<string, any>) {
     if (this.logger) {
@@ -254,7 +254,25 @@ export class AssetManager {
       return { status: "forbidden" };
     }
 
-    const file = await this.storage.get(asset.storagePath);
+    // Try/catch around storage
+    let file;
+    try {
+      file = await this.storage.get(asset.storagePath);
+    } catch (err: any) {
+      if (err.code === "ENOENT" || err.message?.includes("FileNotFound")) {
+        // Treat missing file as "not found"
+        this.log({
+          event: "FILE_GET_NOT_FOUND",
+          assetId: id,
+          reason: "storage-missing",
+          originalError: err.message,
+          timestamp: now
+        });
+        return { status: "not_found" };
+      }
+      // Re-throw other errors
+      throw err;
+    }
 
     if (!file) {
       this.log({
