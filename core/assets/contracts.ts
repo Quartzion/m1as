@@ -34,3 +34,4 @@ export interface AssetCache {
   set(asset: AssetRecord): Promise<void>;
   delete(id: AssetId): Promise<void>;
 }
+

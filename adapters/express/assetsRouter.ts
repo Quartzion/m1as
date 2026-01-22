@@ -87,10 +87,16 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
   );
 
   // Get asset metadata
-  router.get("/:id", async (req: Request, res: Response) => {
+  router.get("/:id", async (req, res) => {
     try {
-      const asset = await assetManager.get(req.params.id);
-      if (!asset) return res.status(404).json({ error: "Not found" });
+      const asset = await assetManager.getMetadataById(
+        req.params.id,
+        getOwnerId?.(req)
+      );
+
+      if (!asset) {
+        return res.status(404).json({ error: "Not found" });
+      }
 
       res.json(asset);
     } catch (err: any) {
@@ -99,20 +105,35 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
     }
   });
 
-  // File retrieval endpoint
-  router.get("/:id/file", async (req: Request, res: Response) => {
-    try {
-      const file = await assetManager.getFileById(req.params.id); // <-- safe call
-      if (!file) return res.status(404).json({ error: "File not found" });
 
-      res.setHeader("Content-Type", file.mimeType);
-      res.setHeader("Content-Disposition", `inline; filename="${file.filename}"`);
-      res.send(file.buffer);
+  // File retrieval endpoint
+  router.get("/:id/file", async (req, res) => {
+    try {
+      const result = await assetManager.getFileById(
+        req.params.id,
+        getOwnerId?.(req)
+      );
+
+      if (result.status === "not_found") {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      if (result.status === "forbidden") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.setHeader("Content-Type", result.file.mimeType);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${result.file.filename}"`
+      );
+      res.send(result.file.buffer);
     } catch (err: any) {
       console.error(err);
       res.status(500).json({ error: err.message });
     }
   });
+
 
   // Delete asset
   router.delete("/:id", async (req: Request, res: Response) => {
@@ -125,7 +146,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
       });
     }
     try {
-      result; 
+      result;
       res.json({ success: true });
     } catch (err: any) {
       console.error(err);

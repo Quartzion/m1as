@@ -2,21 +2,24 @@ import {
   AssetStorageAdapter,
   AssetRepository,
   AssetCache,
-  AssetUploadInput
+  AssetUploadInput,
 } from "./contracts.js";
-import { AssetRecord } from "./types.js";
+import {
+  AssetRecord,
+  PublicAssetMetadata,
+  PrivateAssetMetadata
+} from "./types.js";
 import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
-import { error } from "console";
 
 export class AssetManager {
   constructor(
     private storage: AssetStorageAdapter,
     private repository: AssetRepository,
     private cache?: AssetCache,
-    private logger?: m1asLogger
-  ) { }
+    private logger?: m1asLogger,
+  ) {}
 
   private log(event: Record<string, any>) {
     if (this.logger) {
@@ -27,6 +30,26 @@ export class AssetManager {
       }
     }
   }
+
+  private toPublicMetadata(asset: AssetRecord): PublicAssetMetadata {
+    return {
+      id: asset.id,
+      filename: asset.filename,
+      mimeType: asset.mimeType,
+      size: asset.size,
+      createdAt: asset.createdAt,
+    };
+  }
+
+  private toPrivateMetadata(asset: AssetRecord): PrivateAssetMetadata {
+    return {
+      ...this.toPublicMetadata(asset),
+      ownerId: asset.ownerId,
+      visibility: asset.visibility,
+      updatedAt: asset.updatedAt,
+    };
+  }
+
 
   // ===== PRIVATE VALIDATION =====
   private validateUpload(input: AssetUploadInput) {
@@ -155,6 +178,7 @@ export class AssetManager {
     }
   }
 
+  // get metadata
   async get(id: string): Promise<AssetRecord | null> {
     const cached = await this.cache?.get(id);
     if (cached) return cached;
@@ -171,12 +195,89 @@ export class AssetManager {
     return asset;
   }
 
-  async getFileById(id: string): Promise<{ buffer: Buffer; filename: string; mimeType: string } | null> {
-    const asset = await this.get(id); // use existing public get()
+  // get metadata
+  async getMetadataById(
+    id: string,
+    requesterOwnerId?: string
+  ): Promise<PublicAssetMetadata | PrivateAssetMetadata | null> {
+
+    const asset = await this.get(id);
     if (!asset) return null;
 
-    // Retrieve file from storage
-    return this.storage.get(asset.storagePath);
+    if (
+      asset.visibility === "private" &&
+      requesterOwnerId !== asset.ownerId
+    ) {
+      this.log({
+        event: "METADATA_REDACTED",
+        assetId: id,
+        requesterOwnerId,
+        reason: "m1as policy visibility-invariant",
+        timestamp: new Date().toISOString()
+      });
+
+      return this.toPublicMetadata(asset);
+    }
+
+    return this.toPrivateMetadata(asset);
+  }
+
+
+  async getFileById(
+    id: string,
+    requesterOwnerId?: string
+  ): Promise<
+    | { status: "ok"; file: { buffer: Buffer; filename: string; mimeType: string } }
+    | { status: "not_found" }
+    | { status: "forbidden" }
+  > {
+    const asset = await this.get(id);
+    const now = new Date();
+
+    if (!asset) {
+      this.log({ event: "FILE_GET_NOT_FOUND", assetId: id, timestamp: now });
+      return { status: "not_found" };
+    }
+
+    // === Built-in visibility invariant ===
+    if (
+      asset.visibility === "private" &&
+      requesterOwnerId !== asset.ownerId
+    ) {
+      this.log({
+        event: "FILE_GET_FORBIDDEN",
+        assetId: id,
+        requesterOwnerId,
+        reason: "m1as policy visibility-invariant",
+        timestamp: now
+      });
+      return { status: "forbidden" };
+    }
+
+    const file = await this.storage.get(asset.storagePath);
+
+    if (!file) {
+      this.log({
+        event: "FILE_GET_NOT_FOUND",
+        assetId: id,
+        reason: "storage-missing",
+        timestamp: now
+      });
+      return { status: "not_found" };
+    }
+
+    this.log({
+      event: "FILE_GET_SUCCESS",
+      assetId: id,
+      ownerId: asset.ownerId,
+      visibility: asset.visibility,
+      timestamp: now
+    });
+
+    return {
+      status: "ok",
+      file
+    };
   }
 
   async delete(id: string): Promise<"deleted" | "not_found"> {

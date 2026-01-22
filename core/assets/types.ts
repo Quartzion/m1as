@@ -14,3 +14,17 @@ export interface AssetRecord {
  readonly  createdAt: Date;
  readonly updatedAt: Date;
 }
+
+export type PublicAssetMetadata = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdAt: Date;
+};
+
+export type PrivateAssetMetadata = PublicAssetMetadata & {
+  ownerId?: string;
+  visibility: "public" | "private";
+  updatedAt: Date;
+};
