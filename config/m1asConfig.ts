@@ -4,7 +4,7 @@ export const m1asConfig = {
     ? process.env.M1AS_ALLOWED_MIME_TYPES.split(",")
     : ["image/png", "image/jpeg", "image/webp"]), // default allowlist 
   maxJsonUploadBytes: Number(process.env.M1AS_MAX_JSON_UPLOAD_BYTES) ?? 2 * 1024 * 1024,
-  multiPartFormFields: Number(process.env.M1AS_MULTIPART_FORM_FIELDS ?? 0 ),
+  multipartAllowedFields: ["visibility"],
   multiPartFieldSizeBytes: Number(
     process.env.M1AS_MULTIPART_FIELD_SIZE_BYTES ?? 0
   ),
