@@ -109,18 +109,26 @@ These concerns are intentionally deferred to the **hardening phase**.
 /asset-service
   /api
     /routes
-      assetsRouter.ts
+      assetsRouter.ts           ← handles framework-agnostic CRUD operations 
+      ExpressAssetAdapter.ts    ← contract handling requests/responses for all framework. Handles multipart form submission (post) 
+      jsonAssetRouter.ts        ← Specifically handles json submissions (post)
+      AssetHttpAdapter.ts       ← interface handling requests/responses for any framework.
+  /config
+    /m1asConfig.ts
   /core
     /assets
       assetManager.ts
       contracts.ts
+      mongoAssetRepo.ts
+      mongooseModels.ts
       types.ts
-  /infrastructure
-    /storage
-      localStorageAdapter.ts
-    /repository
-      mongoAssetRepository.ts
-  server.ts
+  /storage
+    /mongo
+      mongoStorageAdapter.ts
+  /server
+    /m1asServer.ts
+    /db
+      /mongoClient.ts
 ```
 
 ---
@@ -149,32 +157,29 @@ npm run m1asTest
 ---
 # Operation Notes
 - there are 2 adapters for uploading files. 
-     - **assetRouter** has been developed to leverage multipart forms intentionally to improve support for larger file uploads.
-     - **jsonAssetRouter** has been developed to send JSON payloads intentionally to improve support for smaller file uploads and MERN integration.  
+     - **EpressAssetRouter** upload (post) uses multipart forms intentionally to improve support for larger file uploads.
+     - **jsonAssetRouter** upoad (post) sends JSON payloads intentionally to improve support for smaller file uploads and MERN integration.  
 - **m1asConfig** is used for setting environment variables for customizability. m1asConfig maintains the following values:
-     - maxFileSizeBytes
-     - allowedMimeTypes
-     - maxJsonUploadBytes
-     - multiPartFormFields
-     - multiPartFieldSizeBytes
-- **visibility defaults to prvate** 
-     - when a file is uploaded and the visibility is not set to public, the visibility will default to private. 
+     - maxFileSizeBytes           ← sets the max upload file size for the multipart form post. Default / fallback - 10 MB.
+     - allowedMimeTypes           ← sets the list of accepted file types. Default / fallback "image/png","image/jpeg","image/webp"
+     - maxJsonUploadBytes         ← sets the max upload file size for the JSON body post. Default / fallbalc - 2 MB.
+     - multiPartAllowedFields     ← set to "visibility" for centrally enforced visibility invariant support. 
+     - logger                     ← sets the m1asLogger logging location. values: console | file | cloud | none.
+     - logFile                    ← sets the m1asLogger log file location. For use when logger=file. Default - ./logs/m1as.log
+     - logLevel                   ← sets the m1asLogger verbosity. Values: error | warn | info | debug | none
+     - m1asServerPort             ← sets the server port m1as runs on.  
+- **visibility defaults to private** 
+     - when a file is uploaded and the visibility is not set to public via the headers (for multipart form submissions) or in the JSON payload, the visibility will default to private. 
      - In order to set the visibility to public via the API, use the jsonAssetRouter with the JSON body demonstrated later below.
-     - To use the multipart form (assetsRouter) an additional form field will need to be enabled via the configuration of M1AS_MULTIPART_FORM_FIELDS in the environment variables. 
-     - **Note** M1AS_MULTIPART_FIELD_SIZE_BYTES should also be set appropriately to accomodate for additional form fields. 
-     - The demo version of m1as has been developed to operate with M1AS_MULTIPART_FIELD_SIZE_BYTES=256 and M1AS_MULTIPART_FORM_FIELDS=0. 
-- **setting visibility to public with the multipart form assetRouter** make the following adjustments to the environment variables.
-     - set M1AS_MULTIPART_FORM_FIELDS=1 (to allow an additional form field)
-     - set M1AS_MULTIPART_FIELD_SIZE_BYTES=256 
-     - send the following curl
-    ```ruby
-  curl -v -X POST http://localhost:<PORT>/assets \
-      -H "m1as-user-id: ANY-USER-123" \
-      -F "file=@C:<your-filepath>/<your-file>.png"\
-      -F "visibility=public"
-    ```
+     - To set the visibility to public on a  multipart form submission (ExpressAssetsAdapter) use the curl listed below. 
+```ruby
+curl -v -X POST http://localhost:<PORT>/assets \
+  -H "m1as-user-id: ANY-USER-123" \
+  -F "file=@C:<your-filepath>/<your-file>.png"\
+  -F "visibility=public"
+```
 - the **data** key of the JSON payload MUST be the **base64** value of the file for uploading via **jsonAssetRouter**
-     - gitbash
+  - gitbash
      ```ruby
      base64 -w 0 C:<filepath>/<filename-with-extension>
      ```   
@@ -193,6 +198,9 @@ curl -v -X POST http://localhost:<PORT>/assets \
 <!-- JSON body -->
 ```ruby
 # POST http://localhost:<PORT>/assets/json
+# header
+m1as-user-id
+# payload
 {
   "filename": "json-test.png",
   "mimeType": "image/png",
@@ -201,10 +209,12 @@ curl -v -X POST http://localhost:<PORT>/assets \
 }
 ```
 4. files can be retrieved by navigating to the following url
+- **note** in order to retrieve files that are set to visibility=private, the request must be sent with the header m1as-user-id matching the ownerId. Sending requests with the header and ownerId discrepant will result in an access denied alert and the file will not be retrieved.
 ```ruby
 http://localhost:<PORT>/assets/<id>/file
 ```
 5. metadata can be retrieved by navigating to the to following url
+- **note** metadata will be **redacted** when the request m1as-user-id header is discrepant from the file's ownerId. 
 ```ruby
 http://localhost:<PORT>/assets/<id>
 ```
@@ -217,8 +227,12 @@ curl -v -X DELETE http://localhost:<PORT>/assets/<id> \
 M1AS_MAX_FILE_SIZE_BYTES=10485760
 M1AS_MAX_JSON_UPLOAD_BYTES=2097152
 M1AS_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp,image/gif
-M1AS_MULTIPART_FORM_FIELDS=0
-M1AS_MULTIPART_FIELD_SIZE_BYTES=256
+M1AS_LOGGER=console
+# values: console | file | cloud | none
+M1AS_LOG_FILE=./logs/m1as.log
+M1AS_LOG_LEVEL=debug
+# values: error | warn | info | debug | none
+M1AS_SERVER_PORT=3000
 ```
 ---
 
@@ -263,22 +277,30 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 ## Physical Repository Layout (POC Implementation)
 ```ruby
 ├─ adapters/
+|  ├─ AssetHttpAdapter.ts       ← interface handling requests/responses for any framework. 
 |  └─ express/
-│     ├─ assetRouter.ts        ← multipart form adapter
-│     ├─ jsonAssetRouter.ts    ← json adapter
+│     ├─ assetRouter.ts         ← framework-agnostic CRUD operations
+|     ├─ ExpressAssetAdapter.ts ← contract handling requests/responses for any framework. Specifically handles multipart form submission (post)
+│     ├─ jsonAssetRouter.ts     ← json adapter for upload via json
 │     └─ index.ts
 │
 ├─ config/
-|  └─ m1asConfig.ts            ← configuration settings
+|  └─ m1asConfig.ts             ← configuration settings
 ├─ core/
+|  ├─ logging/
+|  |    └─ createLogger.ts      ← m1asLogger
+|  |
 |  └─ assets/
-│     ├─ assetManager.ts       ← storage + validation
-│     ├─ mongoAssetRepo.ts     ← MongoDB logic
+│     ├─ assetManager.ts        ← storage + validation
+│     ├─ mongoAssetRepo.ts      ← MongoDB logic
 │     ├─ index.ts
 │     ├─ mongooseModels.ts
 │     ├─ contracts.ts
 │     └─ types.ts
 │
+├─ logs/
+|  └─ m1as.log                  ← m1asLogger log file location. For use when M1AS_LOGGER=file.
+│  
 ├─ server/
 │  ├─ m1asServer.ts
 |  └─ db/

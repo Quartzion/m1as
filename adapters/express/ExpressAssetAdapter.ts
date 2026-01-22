@@ -25,6 +25,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
                 fileSize: m1asConfig.maxFileSizeBytes || 10 * 1024 * 1024,
                 files: 1,
                 fields: allowedFields.length || 0,
+                fieldSize: 256,
             },
         }).single("file");
     }
@@ -56,7 +57,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     async upload(req: any, res: any) {
         try {
-            // 🔹 Run multipart parsing explicitly
+            // Run multipart parsing explicitly
             await this.runMulter(req, res);
 
             if (!req.file) {
@@ -79,8 +80,16 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
 
             const detected = await fileTypeFromBuffer(req.file.buffer);
-            const mimeType =
-                detected?.mime ?? req.file.mimetype ?? "application/octet-stream";
+            const mimeType = detected?.mime ?? req.file.mimetype ?? "application/octet-stream";
+
+            let visibility: "private" | "public" = "private";
+
+            if (
+                m1asConfig.multipartAllowedFields?.includes("visibility") &&
+                req.body?.visibility === "public"
+            ) {
+                visibility = "public";
+            }
 
             const asset = await this.options.assetManager.upload({
                 buffer: req.file.buffer,
@@ -88,7 +97,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
                 mimeType,
                 size: req.file.size,
                 ownerId: this.ownerId(req),
-                visibility: "private",
+                visibility: visibility,
             });
 
             return res.json(asset);

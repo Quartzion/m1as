@@ -70,11 +70,14 @@ export class AssetManager {
     }
 
     // MIME type allowlist
-    const allowedMimeTypes = m1asConfig.allowedMimeTypes || [
-      "image/png",
-      "image/jpeg",
-      "image/webp"
-    ];
+    const allowedMimeTypes = 
+      m1asConfig.allowedMimeTypes || 
+      // default fall back allowed file types list
+      [ 
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ];
     if (!input.mimeType || !allowedMimeTypes.includes(input.mimeType)) {
       throw new Error(`MIME type not allowed: ${input.mimeType}`);
     }
