@@ -1,5 +1,5 @@
 import express, { Request, Response, Router } from "express";
-import { JsonAssetAdapter } from "./jsonAssetAdapter.js";
+import { JsonAssetAdapter } from "./JsonAssetAdapter.js";
 
 export function createJsonAssetRouter(adapter: JsonAssetAdapter) {
   const router = express.Router();

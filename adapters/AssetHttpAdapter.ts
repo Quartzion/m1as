@@ -1,4 +1,4 @@
-import { AssetManager } from "../core/assets/assetManager.js";
+import { AssetManager } from "../core/assets/AssetManager.js";
 
 export interface AssetHttpAdapterOptions {
   assetManager: AssetManager;

@@ -1,5 +1,5 @@
 import { AssetHttpAdapter } from "../AssetHttpAdapter.js";
-import { AssetManager } from "../../core/assets/assetManager.js";
+import { AssetManager } from "../../core/assets/AssetManager.js";
 import { m1asConfig } from "../../config/m1asConfig.js";
 
 export class JsonAssetAdapter implements AssetHttpAdapter {

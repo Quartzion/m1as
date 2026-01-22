@@ -1,7 +1,7 @@
 // adapters/express/assetsRouter.ts
 import express, { Router } from "express";
 import { ExpressAssetAdapter } from "./ExpressAssetAdapter.js";
-import { AssetManager } from "../../core/assets/assetManager.js";
+import { AssetManager } from "../../core/assets/AssetManager.js";
 
 export interface AssetRouterOptions {
   assetManager: AssetManager;

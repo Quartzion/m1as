@@ -5,7 +5,7 @@ import { m1asConfig } from "../../config/m1asConfig.js";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import { PassThrough } from "stream";
-import { AssetManager } from "../../core/assets/assetManager.js";
+import { AssetManager } from "../../core/assets/AssetManager.js";
 import type { RequestHandler } from "express";
 
 const pipelineAsync = promisify(pipeline);
