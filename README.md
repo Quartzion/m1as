@@ -111,7 +111,8 @@ These concerns are intentionally deferred to the **hardening phase**.
     /routes
       assetsRouter.ts           ← handles framework-agnostic CRUD operations 
       ExpressAssetAdapter.ts    ← contract handling requests/responses for all framework. Handles multipart form submission (post) 
-      jsonAssetRouter.ts        ← Specifically handles json submissions (post)
+      jsonAssetRouter.ts        ← only maintains post for json submissions (post)
+      jasonAssetAdapter.ts      ← Specifically handles json submissions (post)
       AssetHttpAdapter.ts       ← interface handling requests/responses for any framework.
   /config
     /m1asConfig.ts
@@ -281,6 +282,7 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  └─ express/
 │     ├─ assetRouter.ts         ← framework-agnostic CRUD operations
 |     ├─ ExpressAssetAdapter.ts ← contract handling requests/responses for any framework. Specifically handles multipart form submission (post)
+|     ├─ jsonAssetAdapter.ts    ← contract handling for json adapter ONLY upload (post).
 │     ├─ jsonAssetRouter.ts     ← json adapter for upload via json
 │     └─ index.ts
 │

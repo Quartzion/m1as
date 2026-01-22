@@ -5,12 +5,38 @@ import express from "express";
 import { AssetManager } from "../core/assets/assetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
 import { createJsonAssetRouter } from "../adapters/express/jsonAssetRouter.js";
+import { JsonAssetAdapter } from "../adapters/express/jsonAssetAdapter.js";
 import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
 import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
 import { createLogger } from "../core/logging/createLogger.js"
 import { m1asConfig } from "../config/m1asConfig.js"
 
 const PORT = m1asConfig.m1asServerPort;
+
+// const jsonAdapter = new JsonAssetAdapter({  
+//   assetManager: new AssetManager(
+//     new MongoStorageAdapter(),
+//     new MongoAssetRepo(),
+//     undefined,
+//     createLogger(m1asConfig.logger, {
+//       filePath: m1asConfig.logFile,
+//       level: m1asConfig.logLevel as any
+//     })
+//   ),
+//   getOwnerId: (req: express.Request) => {
+//     const raw = req.headers["m1as-user-id"];
+
+//     if (Array.isArray(raw)) {
+//       throw new Error("Multiple m1as-user-id headers are not allowed");
+//     }
+
+//     if (raw === undefined || raw.trim() === "") {
+//       throw new Error("m1as-user-id header is required");
+//     }
+
+//     return raw;
+//   }
+// });
 
 async function startServer() {
   // 1. Connect to Mongo
@@ -42,7 +68,20 @@ async function startServer() {
     logger
     );
 
-  // 5. Asset API
+  // 4.b Owner resolver
+    const getOwnerId = (req: express.Request) => {
+    const raw = req.headers["m1as-user-id"];
+
+    if (Array.isArray(raw)) {
+      throw new Error("Multiple m1as-user-id headers are not allowed");
+    }
+    if (!raw || raw.trim() === "") {
+      throw new Error("m1as-user-id header is required");
+    }
+    return raw;
+  };
+
+  // 5. multipart adapter Asset API
   app.use(
     "/assets",
     createAssetRouter({
@@ -63,26 +102,15 @@ async function startServer() {
 
     })
   );
-  // 5.b JSON Asset API
+  // 5.b JSON Adapter
+    const jsonAdapter = new JsonAssetAdapter({
+    assetManager,
+    getOwnerId
+  });
+
+  // 5.c JSON Asset API
   app.use(express.json({ limit: "3mb" }));
-  app.use("/assets/json",
-    createJsonAssetRouter({
-      assetManager,
-      getOwnerId: (req) => {
-        const raw = req.headers["m1as-user-id"];
-
-        if (Array.isArray(raw)) {
-          throw new Error("Multiple m1as-user-id headers are not allowed");
-        }
-
-        if (raw === undefined || raw.trim() === "") {
-          throw new Error("m1as-user-id header is required");
-        }
-
-        return raw;
-      }
-    })
-  );
+  app.use("/assets/json", createJsonAssetRouter(jsonAdapter));
 
   // 6. Health check
   app.get("/health", (_req, res) => {
