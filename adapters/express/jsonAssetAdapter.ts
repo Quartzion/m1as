@@ -60,7 +60,11 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
                 return res.status(400).json({ error: "Base64 data is required" });
             }
 
+            if (!/^[A-Za-z0-9+/=]+$/.test(data)) {
+                return res.status(400).json({ error: "Invalid base64 encoding" });
+            }
             const buffer = Buffer.from(data, "base64");
+
             const maxSize = m1asConfig.maxJsonUploadBytes ?? 2 * 1024 * 1024;
 
             if (buffer.length > maxSize) {
