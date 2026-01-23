@@ -1,1 +1,1 @@
-export * from './MongoStorageAdapter.js'
+export * from './mongoStorageAdapter.js'

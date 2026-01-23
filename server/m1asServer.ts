@@ -1,75 +1,63 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import express from "express";
+import http from "http";
 
 import { AssetManager } from "../core/assets/AssetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
 import { createJsonAssetRouter } from "../adapters/express/jsonAssetRouter.js";
-import { JsonAssetAdapter } from "../adapters/express/JsonAssetAdapter.js";
+import { JsonAssetAdapter } from "../adapters/express/jsonAssetAdapter.js";
 import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
-import { MongoStorageAdapter } from "../storage/mongo/MongoStorageAdapter.js";
-import { createLogger } from "../core/logging/createLogger.js"
-import { m1asConfig } from "../config/m1asConfig.js"
+import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
+import { createLogger } from "../core/logging/createLogger.js";
+import { m1asConfig } from "../config/m1asConfig.js";
 
 const PORT = m1asConfig.m1asServerPort;
 
-// const jsonAdapter = new JsonAssetAdapter({  
-//   assetManager: new AssetManager(
-//     new MongoStorageAdapter(),
-//     new MongoAssetRepo(),
-//     undefined,
-//     createLogger(m1asConfig.logger, {
-//       filePath: m1asConfig.logFile,
-//       level: m1asConfig.logLevel as any
-//     })
-//   ),
-//   getOwnerId: (req: express.Request) => {
-//     const raw = req.headers["m1as-user-id"];
-
-//     if (Array.isArray(raw)) {
-//       throw new Error("Multiple m1as-user-id headers are not allowed");
-//     }
-
-//     if (raw === undefined || raw.trim() === "") {
-//       throw new Error("m1as-user-id header is required");
-//     }
-
-//     return raw;
-//   }
-// });
-
 async function startServer() {
-  // 1. Connect to Mongo
+  const logger = createLogger(m1asConfig.logger as "console" | "none" | "file" | "cloud", {
+    filePath: m1asConfig.logFile,
+    level: m1asConfig.logLevel as any
+  });
+
+  // ---- MongoDB connection ----
   try {
-    await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/m1as");
-    console.log("Connected to MongoDB");
+    await mongoose.connect(
+      process.env.MONGO_URI || "mongodb://localhost:27017/m1as"
+    );
+
+    logger?.({
+      level: "info",
+      msg: "MongoDB connected"
+    });
   } catch (err) {
-    console.error("MongoDB connection failed:", err);
+    logger?.({
+      level: "error",
+      msg: "MongoDB connection failed",
+      err
+    });
     process.exit(1);
   }
 
-  // 2. Express setup
+  // ---- Express app ----
   const app = express();
+  app.disable("x-powered-by");
 
-  // 3. Mongo-backed storage & repository
-  const storage = new MongoStorageAdapter(); // stores actual file bytes in Mongo (GridFS)
-  const repository = new MongoAssetRepo(); // stores metadata
-  const cache = undefined;
-  const logger = createLogger(m1asConfig.logger, {
-  filePath: m1asConfig.logFile,
-  level: m1asConfig.logLevel as any
-  });
+  app.use(express.json({ limit: "3mb" }));
 
-  // 4. Asset manager (core)
+  // ---- Core services ----
+  const storage = new MongoStorageAdapter();
+  const repository = new MongoAssetRepo();
+
   const assetManager = new AssetManager(
     storage,
     repository,
-    cache,
+    undefined,
     logger
-    );
+  );
 
-  // 4.b Owner resolver
-    const getOwnerId = (req: express.Request) => {
+  // ---- Owner resolver (single source of truth) ----
+  const getOwnerId = (req: express.Request): string => {
     const raw = req.headers["m1as-user-id"];
 
     if (Array.isArray(raw)) {
@@ -81,49 +69,79 @@ async function startServer() {
     return raw;
   };
 
-  // 5. multipart adapter Asset API
+  // ---- Multipart API ----
   app.use(
     "/assets",
     createAssetRouter({
       assetManager,
-      getOwnerId: (req) => {
-        const raw = req.headers["m1as-user-id"];
-
-        if (Array.isArray(raw)) {
-          throw new Error("Multiple m1as-user-id headers are not allowed");
-        }
-
-        if (raw === undefined || raw.trim() === "") {
-          throw new Error("m1as-user-id header is required");
-        }
-
-        return raw;
-      }
-
+      getOwnerId
     })
   );
-  // 5.b JSON Adapter
-    const jsonAdapter = new JsonAssetAdapter({
+
+  // ---- JSON API ----
+  const jsonAdapter = new JsonAssetAdapter({
     assetManager,
     getOwnerId
   });
 
-  // 5.c JSON Asset API
-  app.use(express.json({ limit: "3mb" }));
   app.use("/assets/json", createJsonAssetRouter(jsonAdapter));
 
-  // 6. Health check
+  // ---- Health check ----
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
-  // 7. Start server
-  app.listen(PORT, () => {
-    console.log(`Asset server running on http://localhost:${PORT}`);
-    console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
-    console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
-    console.log(`Health check available at http://localhost:${PORT}/health`);
+  // ---- HTTP server ----
+  const server = http.createServer(app);
+
+  server.listen(PORT, () => {
+    logger?.({
+      level: "info",
+      msg: "Asset server started",
+      port: PORT
+    });
   });
+
+  // ---- Graceful shutdown ----
+  const shutdown = async (signal: string) => {
+    logger?.({
+      level: "info",
+      msg: "Shutdown initiated",
+      signal
+    });
+
+    try {
+      await mongoose.disconnect();
+      logger?.({
+        level: "info",
+        msg: "MongoDB disconnected"
+      });
+    } catch (err) {
+      logger?.({
+        level: "error",
+        msg: "Error during MongoDB shutdown",
+        err
+      });
+    }
+
+    server.close(() => {
+      logger?.({
+        level: "info",
+        msg: "HTTP server closed"
+      });
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("Fatal startup error:", err);
+  process.exit(1);
+})
+  console.log(`Asset server running on http://localhost:${PORT}`);
+  console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
+  console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
+  console.log(`Health check available at http://localhost:${PORT}/health`);

@@ -21,15 +21,25 @@ export class AssetManager {
     private logger?: m1asLogger,
   ) { }
 
-  private log(event: Record<string, any>) {
-    if (this.logger) {
-      try {
-        this.logger(event);
-      } catch (err) {
-        console.error("logger failed:", err)
-      }
+  private log(
+    level: "error" | "warn" | "info" | "debug",
+    msg: string,
+    fields?: Record<string, unknown>
+  ) {
+    if (!this.logger) return;
+
+    try {
+      this.logger({
+        level,
+        msg,
+        time: Date.now(),
+        ...fields,
+      });
+    } catch (err) {
+      console.error("logger failed:", err);
     }
   }
+
 
   private toPublicMetadata(asset: AssetRecord): PublicAssetMetadata {
     return {
@@ -70,10 +80,10 @@ export class AssetManager {
     }
 
     // MIME type allowlist
-    const allowedMimeTypes = 
-      m1asConfig.allowedMimeTypes || 
+    const allowedMimeTypes =
+      m1asConfig.allowedMimeTypes ||
       // default fall back allowed file types list
-      [ 
+      [
         "image/png",
         "image/jpeg",
         "image/webp"
@@ -144,10 +154,10 @@ export class AssetManager {
         await this.cache?.set(saved);
 
       } catch (err: any) {
-        this.log({ event: "CACHE_FAIL", assetId: id, error: err.message });
+        this.log("warn","Cache write failure",{ event: "CACHE_FAIL", assetId: id, error: err.message });
       }
 
-      this.log({
+      this.log("info", "Asset Upload Succeeded",{
         event: "UPLOAD_SUCCESS",
         assetId: id,
         filename: input.filename,
@@ -168,7 +178,7 @@ export class AssetManager {
         }
       }
 
-      this.log({
+      this.log("error","Asset Upload Failed",{
         event: "UPLOAD_FAIL",
         assetId: id,
         filename: input.filename,
@@ -211,7 +221,7 @@ export class AssetManager {
       asset.visibility === "private" &&
       requesterOwnerId !== asset.ownerId
     ) {
-      this.log({
+      this.log("info","Private Metadata Redacted",{
         event: "METADATA_REDACTED",
         assetId: id,
         requesterOwnerId,
@@ -238,7 +248,7 @@ export class AssetManager {
     const now = new Date();
 
     if (!asset) {
-      this.log({ event: "FILE_GET_NOT_FOUND", assetId: id, timestamp: now });
+      this.log("info","File not found",{ event: "FILE_GET_NOT_FOUND", assetId: id, timestamp: now });
       return { status: "not_found" };
     }
 
@@ -247,7 +257,7 @@ export class AssetManager {
       asset.visibility === "private" &&
       requesterOwnerId !== asset.ownerId
     ) {
-      this.log({
+      this.log("warn","File Access Restricted",{
         event: "FILE_GET_FORBIDDEN",
         assetId: id,
         requesterOwnerId,
@@ -264,7 +274,7 @@ export class AssetManager {
     } catch (err: any) {
       if (err.code === "ENOENT" || err.message?.includes("FileNotFound")) {
         // Treat missing file as "not found"
-        this.log({
+        this.log("warn","Asset File Not Found",{
           event: "FILE_GET_NOT_FOUND",
           assetId: id,
           reason: "storage-missing",
@@ -278,7 +288,7 @@ export class AssetManager {
     }
 
     if (!file) {
-      this.log({
+      this.log("warn","File Asset missing",{
         event: "FILE_GET_NOT_FOUND",
         assetId: id,
         reason: "storage-missing",
@@ -287,7 +297,7 @@ export class AssetManager {
       return { status: "not_found" };
     }
 
-    this.log({
+    this.log("info","File Retrieved",{
       event: "FILE_GET_SUCCESS",
       assetId: id,
       ownerId: asset.ownerId,
@@ -305,7 +315,7 @@ export class AssetManager {
     const asset = await this.repository.findById(id);
 
     if (!asset) {
-      this.log({
+      this.log("info","Record not found",{
         event: "DELETE_NOT_FOUND",
         assetId: id,
         timestamp: new Date().toISOString()
@@ -319,7 +329,7 @@ export class AssetManager {
       await this.repository.deleteById(id);
       await this.cache?.delete(id);
 
-      this.log({
+      this.log("info","Successful Delete",{
         event: "DELETE_SUCCESS",
         assetId: id,
         ownerId: asset.ownerId,
@@ -329,7 +339,7 @@ export class AssetManager {
 
       return "deleted";
     } catch (err: any) {
-      this.log({
+      this.log("error","DELETE FAIL",{
         event: "DELETE_FAIL",
         assetId: id,
         error: err.message,

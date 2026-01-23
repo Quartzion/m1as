@@ -1,71 +1,101 @@
 import fs from "fs";
 import path from "path";
 
-export type m1asLogger = (log: Record<string, any>) => void;
+/* ----------------------------------
+ * Log levels
+ * ---------------------------------- */
 
-const LEVELS = ["error", "warn", "info", "debug"] as const;
-type LogLevel = typeof LEVELS[number];
+export const LEVELS = ["error", "warn", "info", "debug"] as const;
+export type LogLevel = typeof LEVELS[number];
 
 function levelRank(level: LogLevel) {
   return LEVELS.indexOf(level);
 }
 
+/* ----------------------------------
+ * Log entry + logger types
+ * ---------------------------------- */
+
+export interface LogEntry {
+  level: LogLevel;
+  msg: string;
+  time?: number;
+  [key: string]: unknown;
+}
+
+export type m1asLogger = (entry: LogEntry) => void;
+
+/* ----------------------------------
+ * Logger factory
+ * ---------------------------------- */
 
 export function createLogger(
-    mode: string, 
-    options?: { filePath?: string; level?: LogLevel }
-    ): m1asLogger | undefined {
-    if (mode === "none") return undefined;
+  mode: "none" | "console" | "file" | "cloud",
+  options?: {
+    filePath?: string;
+    level?: LogLevel;
+  }
+): m1asLogger | undefined {
+  if (mode === "none") return undefined;
 
-    const minLevel = options?.level ?? "info";
+  const minLevel = options?.level ?? "info";
 
-    const m1asLoggerLvl  = (log: Record<string, any>) => {
-        const lvl = (log.level ?? "info" as LogLevel)
-        return levelRank(lvl) <= levelRank(minLevel);
+  const shouldLog = (entry: LogEntry) =>
+    levelRank(entry.level) <= levelRank(minLevel);
+
+  const normalize = (entry: LogEntry) => ({
+    time: entry.time ?? Date.now(),
+    ...entry,
+  });
+
+  /* ---------- console logger ---------- */
+
+  if (mode === "console") {
+    return (entry) => {
+      if (!shouldLog(entry)) return;
+      console.log(JSON.stringify(normalize(entry)));
     };
+  }
 
-    if (mode === "console") {
-        return (log) => {
-            if (!m1asLoggerLvl(log)) return;
-            console.log(JSON.stringify(log));
-        };
+  /* ---------- file logger ---------- */
+
+  if (mode === "file") {
+    if (!options?.filePath) {
+      console.warn("File logger disabled: filePath not set");
+      return undefined;
     }
 
-    if (mode === "file") {
-        if (!options?.filePath) {
-            console.warn("File logger disabled: M1AS_LOG_FILE not set");
-            return undefined;
-        }
+    try {
+      const dir = path.dirname(options.filePath);
+      fs.mkdirSync(dir, { recursive: true });
 
+      const stream = fs.createWriteStream(
+        path.resolve(options.filePath),
+        { flags: "a" }
+      );
+
+      return (entry) => {
+        if (!shouldLog(entry)) return;
         try {
-
-            const dir = path.dirname(options.filePath);
-            fs.mkdirSync(dir, { recursive: true });
-
-
-            const stream = fs.createWriteStream(
-                path.resolve(options.filePath),
-                { flags: "a" }
-            );
-
-            return (log) => {
-                if (!m1asLoggerLvl(log)) return;
-                try {
-                    stream.write(JSON.stringify(log) + "\n");
-                } catch { }
-            };
-        } catch (err) {
-            console.warn("Failed to initialize file logger:", err);
-            return undefined;
+          stream.write(JSON.stringify(normalize(entry)) + "\n");
+        } catch {
+          /* swallow logging errors */
         }
+      };
+    } catch (err) {
+      console.warn("Failed to initialize file logger:", err);
+      return undefined;
     }
+  }
 
-    if (mode === "cloud") {
-        return (log) => {
-            // placeholder — integrators override this
-            console.log(JSON.stringify({ cloud: true, ...log }));
-        };
-    }
+  /* ---------- cloud logger (hook) ---------- */
 
-    throw new Error(`Unknown logger mode: ${mode}`);
+  if (mode === "cloud") {
+    return (entry) => {
+      if (!shouldLog(entry)) return;
+      console.log(JSON.stringify({ cloud: true, ...normalize(entry) }));
+    };
+  }
+
+  throw new Error(`Unknown logger mode: ${mode}`);
 }
