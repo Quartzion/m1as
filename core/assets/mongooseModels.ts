@@ -16,7 +16,6 @@ const AssetSchema = new Schema<AssetDoc>({
   updatedAt: { type: Date, required: true },
 });
 
-AssetSchema.index({ id: 1 }, { unique: true });
 AssetSchema.index({ ownerId: 1 });
 AssetSchema.index({ visibility: 1 });
 

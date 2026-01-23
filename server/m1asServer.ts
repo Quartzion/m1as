@@ -61,10 +61,14 @@ async function startServer() {
     const raw = req.headers["m1as-user-id"];
 
     if (Array.isArray(raw)) {
-      throw new Error("Multiple m1as-user-id headers are not allowed");
+      const err = new Error("Multiple m1as-user-id headers are not allowed");
+      (err as any).statusCode = 400;
+      throw err;
     }
     if (!raw || raw.trim() === "") {
-      throw new Error("m1as-user-id header is required");
+      const err = new Error("m1as-user-id header is required");
+      (err as any).statusCode = 400;
+      throw err;
     }
     return raw;
   };
@@ -91,6 +95,28 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // --- logging ---
+  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status =
+    err.statusCode ??
+    err.status ??
+    (err.message?.includes("required") ? 400 : 500);
+
+  logger?.({
+    level: status >= 500 ? "error" : "warn",
+    msg: "HTTP handler error",
+    method: req.method,
+    path: req.originalUrl,
+    status,
+    error: err.message
+  });
+
+  res.status(status).json({
+    error: err.message ?? "Internal Server Error"
+  });
+});
+
+
   // ---- HTTP server ----
   const server = http.createServer(app);
 
@@ -99,6 +125,12 @@ async function startServer() {
       level: "info",
       msg: "Asset server started",
       port: PORT
+    });
+
+    logger?.({
+      level: "info",
+      msg: "Health endpoint registered",
+      path: `${PORT}/health`
     });
   });
 
