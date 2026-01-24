@@ -11,8 +11,34 @@ import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
 import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
 import { createLogger } from "../core/logging/createLogger.js";
 import { m1asConfig } from "../config/m1asConfig.js";
+import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
 
 const PORT = m1asConfig.m1asServerPort;
+
+// ---- rate limiter ----
+const uploadRateLimit = createRateLimit({
+  windowMs: m1asConfig.rateLimit.windowMs,
+  max: m1asConfig.rateLimit.uploadMax,
+  keyFn: (req) =>
+    req.headers["m1as-user-id"] ??
+    req.ip
+});
+
+const readRateLimit = createRateLimit({
+  windowMs: m1asConfig.rateLimit.windowMs,
+  max: m1asConfig.rateLimit.readMax,
+  keyFn: (req) =>
+    req.headers["m1as-user-id"] ??
+    req.ip
+});
+
+const deleteRateLimit = createRateLimit({
+  windowMs: m1asConfig.rateLimit.windowMs,
+  max: m1asConfig.rateLimit.deleteMax,
+  keyFn: (req) =>
+    req.headers["m1as-user-id"] ??
+    req.ip
+});
 
 async function startServer() {
   const logger = createLogger(m1asConfig.logger as "console" | "none" | "file" | "cloud", {
@@ -76,6 +102,9 @@ async function startServer() {
   // ---- Multipart API ----
   app.use(
     "/assets",
+    uploadRateLimit,
+    readRateLimit,
+    deleteRateLimit,
     createAssetRouter({
       assetManager,
       getOwnerId
@@ -88,7 +117,9 @@ async function startServer() {
     getOwnerId
   });
 
-  app.use("/assets/json", createJsonAssetRouter(jsonAdapter));
+  app.use("/assets/json",
+    uploadRateLimit,
+    createJsonAssetRouter(jsonAdapter));
 
   // ---- Health check ----
   app.get("/health", (_req, res) => {
@@ -97,24 +128,24 @@ async function startServer() {
 
   // --- logging ---
   app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status =
-    err.statusCode ??
-    err.status ??
-    (err.message?.includes("required") ? 400 : 500);
+    const status =
+      err.statusCode ??
+      err.status ??
+      (err.message?.includes("required") ? 400 : 500);
 
-  logger?.({
-    level: status >= 500 ? "error" : "warn",
-    msg: "HTTP handler error",
-    method: req.method,
-    path: req.originalUrl,
-    status,
-    error: err.message
-  });
+    logger?.({
+      level: status >= 500 ? "error" : "warn",
+      msg: "HTTP handler error",
+      method: req.method,
+      path: req.originalUrl,
+      status,
+      error: err.message
+    });
 
-  res.status(status).json({
-    error: err.message ?? "Internal Server Error"
+    res.status(status).json({
+      error: err.message ?? "Internal Server Error"
+    });
   });
-});
 
 
   // ---- HTTP server ----
@@ -173,7 +204,7 @@ startServer().catch(err => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 })
-  console.log(`Asset server running on http://localhost:${PORT}`);
-  console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
-  console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
-  console.log(`Health check available at http://localhost:${PORT}/health`);
+console.log(`Asset server running on http://localhost:${PORT}`);
+console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
+console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
+console.log(`Health check available at http://localhost:${PORT}/health`);

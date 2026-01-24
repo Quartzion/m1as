@@ -8,6 +8,13 @@ export const m1asConfig = {
   logger: process.env.M1AS_LOGGER ?? "console",
   logFile: process.env.M1AS_LOG_FILE,
   logLevel: process.env.M1AS_LOG_LEVEL,
-  m1asServerPort: Number(process.env.M1AS_SERVER_PORT ?? 3000)
+  m1asServerPort: Number(process.env.M1AS_SERVER_PORT ?? 3000),
+  rateLimit: {
+    windowMs: Number(process.env.M1AS_RL_LOCKOUT_TIME) ?? 60_000, // 1 min
+    uploadMax: Number(process.env.M1AS_RL_UPLOAD_MAX) ?? 10,
+    readMax: Number(process.env.M1AS_RL_READ_MAX) ?? 60,
+    deleteMax: Number(process.env.M1AS_RL_DELETE_MAX) ?? 10,
+    enabled: process.env.M1AS_RATE_LIMIT !== "off"
+  }
 };
 
