@@ -113,16 +113,26 @@ These concerns are intentionally deferred to the **hardening phase**.
       ExpressAssetAdapter.ts    ← contract handling requests/responses for all framework. Handles multipart form submission (post) 
       jsonAssetRouter.ts        ← only maintains post for json submissions (post)
       jasonAssetAdapter.ts      ← Specifically handles json submissions (post)
-      AssetHttpAdapter.ts       ← interface handling requests/responses for any framework.
+    /AssetHttpAdapter.ts        ← interface handling requests/responses for any framework.
   /config
     /m1asConfig.ts
   /core
     /assets
-      assetManager.ts
+      AssetManager.ts
       contracts.ts
       mongoAssetRepo.ts
       mongooseModels.ts
       types.ts
+  /http
+    /HttpErrors.ts
+  /logging
+    /createLogger.ts
+  /middleware
+    /rateLimitMiddleware.ts
+  /rateLimiter
+    /rateLimiter.ts
+  /logs
+    /m1as.log
   /storage
     /mongo
       mongoStorageAdapter.ts
@@ -163,12 +173,19 @@ npm run m1asTest
 - **m1asConfig** is used for setting environment variables for customizability. m1asConfig maintains the following values:
      - maxFileSizeBytes           ← sets the max upload file size for the multipart form post. Default / fallback - 10 MB.
      - allowedMimeTypes           ← sets the list of accepted file types. Default / fallback "image/png","image/jpeg","image/webp"
-     - maxJsonUploadBytes         ← sets the max upload file size for the JSON body post. Default / fallbalc - 2 MB.
+     - maxJsonUploadBytes         ← sets the max upload file size for the JSON body post. Default / fallback - 2 MB.
      - multiPartAllowedFields     ← set to "visibility" for centrally enforced visibility invariant support. 
-     - logger                     ← sets the m1asLogger logging location. values: console | file | cloud | none.
+     - logger                     ← sets the m1asLogger logging location. Default / fallback - console. values: console | file | cloud | none.
      - logFile                    ← sets the m1asLogger log file location. For use when logger=file. Default - ./logs/m1as.log
-     - logLevel                   ← sets the m1asLogger verbosity. Values: error | warn | info | debug | none
-     - m1asServerPort             ← sets the server port m1as runs on.  
+     - logLevel                   ← sets the m1asLogger verbosity. Default / fallback - error. Values: error | warn | info | debug | none
+     - m1asServerPort             ← sets the server port m1as runs on.
+     - rateLimit: {               ← rate limiter settings.
+       - windowMs                 ← sets the lock out period length when limit is reached. Default / fallback - 20 min.
+       - uploadMax:               ← sets upload max value. Default / fallback - 10 uploads.
+       - readMax:                 ← sets the get max value. Default / fallback - 60 retrieves.
+       - deleteMax:               ← sets the delete max value. Default / fallback - 10 deletes.
+       - enabled:                 ← turns on / off the rate limiter. Default / fall back to TRUE (on).
+      }
 - **visibility defaults to private** 
      - when a file is uploaded and the visibility is not set to public via the headers (for multipart form submissions) or in the JSON payload, the visibility will default to private. 
      - In order to set the visibility to public via the API, use the jsonAssetRouter with the JSON body demonstrated later below.
@@ -183,8 +200,23 @@ curl -v -X POST http://localhost:<PORT>/assets \
   - gitbash
      ```ruby
      base64 -w 0 C:<filepath>/<filename-with-extension>
-     ```   
+     ```
+- **To turn m1as rate limiter off** you must add **M1AS_RATE_LIMIT=off** to your **environment variables**. The m1as rate limiter defaults to ON, when not explicitly set to OFF. 
 ---
+
+## m1as logger details
+m1as comes with an internal logging system for handling errors and reporting error details that has been designed for integration with deployed environment reporting / error handling systems (dataDog, splunk etc). The following details pertain specifically to the designed functionality of the m1asLogger.
+- the m1as logger **defaults** to **console** when the **environment variable** for **M1AS_LOGGER** is not set to one of the expected values (values: console | file | cloud | none).
+- the m1as logger **defaults** to **error** when the **environment variable** for **M1AS_LOG_LEVEL** is not set to one of the expected values (values: error | debug | info | none). This sets the verbosity for the logger.
+- the m1as logger log file **location** will default to **./logs/m1as.log**.
+
+## m1as rate limiter details
+m1as comes with an internal rate limiter to help prevent abuse and restrict port activity for infrastructure support needs. Below are the specific details for the m1as rate limiter.
+- the m1as rate limiter **defaults** to **on** when the **environment variable** for **M1AS_RATE_LIMIT** is not set explicitly to **off**.
+- the m1as rate limiter lock out period **defaults** to **20 mins** when **environment variable** for **M1AS_RL_LOCKOUT_TIME** is not set in milliseconds. Example 1 min = 60000.
+- the m1as rate limiter **upload max** will **default** to **10 files** when the **environemnt variable** for **M1AS_RL_UPLOAD_MAX** is not set.
+- the m1as rate limiter **delete max** will **default** to **10 files** when the **environment variable** for **M1AS_RL_DELETE_MAX** is not set.
+- the m1as rate limiter **read max** will **default** to **60** when the **environment variable** for **M1AS_RL_READ_MAX** is not set.
 
 ## how to evaluate
 1. open a gitbash terminal and execute the npm scripts listed in the Getting Started section
@@ -215,7 +247,7 @@ m1as-user-id
 http://localhost:<PORT>/assets/<id>/file
 ```
 5. metadata can be retrieved by navigating to the to following url
-- **note** metadata will be **redacted** when the request m1as-user-id header is discrepant from the file's ownerId. 
+- **note** metadata will be **redacted** when the request **m1as-user-id** header **is discrepant** from the file's **ownerId**. 
 ```ruby
 http://localhost:<PORT>/assets/<id>
 ```
@@ -233,7 +265,13 @@ M1AS_LOGGER=console
 M1AS_LOG_FILE=./logs/m1as.log
 M1AS_LOG_LEVEL=debug
 # values: error | warn | info | debug | none
-M1AS_SERVER_PORT=3000
+M1AS_SERVER_PORT=1311
+M1AS_RL_LOCKOUT_TIME=10000
+M1AS_RL_UPLOAD_MAX=2
+M1AS_RL_READ_MAX=3
+M1AS_RL_DELETE_MAX=2
+M1AS_RATE_LIMIT=on
+#vales: on | off
 ```
 ---
 
@@ -278,30 +316,40 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 ## Physical Repository Layout (POC Implementation)
 ```ruby
 ├─ adapters/
-|  ├─ AssetHttpAdapter.ts       ← interface handling requests/responses for any framework. 
+|  ├─ AssetHttpAdapter.ts           ← interface handling requests/responses for any framework. 
 |  └─ express/
-│     ├─ assetRouter.ts         ← framework-agnostic CRUD operations
-|     ├─ ExpressAssetAdapter.ts ← contract handling requests/responses for any framework. Specifically handles multipart form submission (post)
-|     ├─ jsonAssetAdapter.ts    ← contract handling for json adapter ONLY upload (post).
-│     ├─ jsonAssetRouter.ts     ← json adapter for upload via json
+│     ├─ assetRouter.ts             ← framework-agnostic CRUD operations
+|     ├─ ExpressAssetAdapter.ts     ← contract handles multipart form submission (post). Main asset CRUD handler.
+|     ├─ jsonAssetAdapter.ts        ← contract for json adapter ONLY upload (post).
+│     ├─ jsonAssetRouter.ts         ← json adapter for upload via json
 │     └─ index.ts
 │
 ├─ config/
-|  └─ m1asConfig.ts             ← configuration settings
+|  └─ m1asConfig.ts                 ← configuration settings
 ├─ core/
-|  ├─ logging/
-|  |    └─ createLogger.ts      ← m1asLogger
 |  |
-|  └─ assets/
-│     ├─ assetManager.ts        ← storage + validation
-│     ├─ mongoAssetRepo.ts      ← MongoDB logic
-│     ├─ index.ts
-│     ├─ mongooseModels.ts
-│     ├─ contracts.ts
-│     └─ types.ts
-│
+|  ├─ assets/
+|  |    |
+│  |    ├─ assetManager.ts          ← storage + validation
+│  |    ├─ mongoAssetRepo.ts        ← MongoDB logic
+│  |    ├─ index.ts
+│  |    ├─ mongooseModels.ts
+│  |    ├─ contracts.ts
+│  |    └─ types.ts
+|  |
+|  ├─ http/
+|  |    └─ HttpError.ts             ← formatting logs for m1as logger.
+│  |
+|  ├─ logging/
+|  |    └─ createLogger.ts          ← m1as logger.
+|  |
+|  ├─ middleware/
+|  |    └─ rateLimitMiddleware.ts   ← m1as rate limiter.
+|  |
+|  ├─ rateLimiter/
+|  |    └─ rateLimit.ts             ← rate limits factory.
 ├─ logs/
-|  └─ m1as.log                  ← m1asLogger log file location. For use when M1AS_LOGGER=file.
+|  └─ m1as.log                      ← m1asLogger log file location. For use when M1AS_LOGGER=file.
 │  
 ├─ server/
 │  ├─ m1asServer.ts
@@ -311,7 +359,7 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 ├─ storage/  
 │  └─ mongo/
 │     ├─ index.ts                
-│     └─ mongoStorageAdapter.ts  ← m1as storage adapter. 
+│     └─ mongoStorageAdapter.ts     ← m1as storage adapter. 
 │
 ├─ .gitignore
 ├─ .env
