@@ -14,6 +14,7 @@ import { m1asConfig } from "../config/m1asConfig.js";
 import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
 
 const PORT = m1asConfig.m1asServerPort;
+let isReady = false;
 
 // ---- rate limiter ----
 const uploadRateLimit = createRateLimit({
@@ -126,6 +127,23 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.get("/ready", async (_req, res) => {
+    if (!isReady) {
+      return res.status(503).json({ status: "not ready" });
+    }
+
+    try {
+      if (!mongoose.connection.db) {
+        return res.status(503).json({ status: "not ready" });
+      }
+      await mongoose.connection.db.admin().ping();
+      res.json({ status: "ready" });
+    } catch {
+      res.status(503).json({ status: "not ready" });
+    }
+  });
+
+
   // --- logging ---
   app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const status =
@@ -151,6 +169,8 @@ async function startServer() {
   // ---- HTTP server ----
   const server = http.createServer(app);
 
+  isReady = true;
+
   server.listen(PORT, () => {
     logger?.({
       level: "info",
@@ -161,7 +181,7 @@ async function startServer() {
     logger?.({
       level: "info",
       msg: "Health endpoint registered",
-      path: `${PORT}/health`
+      path: `${PORT}/ready`
     });
   });
 
@@ -207,4 +227,5 @@ startServer().catch(err => {
 console.log(`Asset server running on http://localhost:${PORT}`);
 console.log(`POST multipart forms (best for larger files) to http://localhost:${PORT}/assets`);
 console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
+console.log(`Rediness check available at http://localhost:${PORT}/ready`);
 console.log(`Health check available at http://localhost:${PORT}/health`);
