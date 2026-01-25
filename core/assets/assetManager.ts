@@ -12,6 +12,7 @@ import {
 import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
+import { normalizeFilename } from "../utils/normalizeFilename.js";
 
 export class AssetManager {
   constructor(
@@ -68,17 +69,6 @@ export class AssetManager {
       throw new Error("Asset buffer is required");
     }
 
-    // Filename checks
-    if (!input.filename || input.filename.trim() === "") {
-      throw new Error("Filename is required");
-    }
-    if (input.filename.includes("..") || input.filename.includes("/")) {
-      throw new Error("Invalid filename (path traversal not allowed)");
-    }
-    if (input.filename.length > 255) {
-      throw new Error("Filename too long (max 255 characters)");
-    }
-
     // MIME type allowlist
     const allowedMimeTypes =
       m1asConfig.allowedMimeTypes ||
@@ -122,20 +112,35 @@ export class AssetManager {
     const id = randomUUID();
     const now = new Date();
 
-    let stored;
 
+
+    const normalized = normalizeFilename(input.filename, {
+      mode: "sanitize",
+      fallbackExtension: ".bin"
+    });
+
+    if (normalized.sanitized) {
+      this.log("warn", "Filename sanitized", {
+      event: "FILENAME_SANITIZED",
+      original: normalized.original,
+      filename: normalized.filename,
+      reason: normalized.reason
+      });
+    }
+
+    let stored;
     try {
       // Save file bytes first
       stored = await this.storage.save({
         buffer: input.buffer,
-        filename: input.filename,
+        filename: normalized.filename,
         mimeType: input.mimeType
       });
 
       // Construct asset record
       const asset: AssetRecord = {
         id,
-        filename: input.filename,
+        filename: normalized.filename, 
         mimeType: input.mimeType,
         size: input.size,
         storagePath: stored.storagePath,
@@ -145,6 +150,7 @@ export class AssetManager {
         createdAt: now,
         updatedAt: now
       };
+
 
       // Attempt repo write
       const saved = await this.repository.create(asset);
