@@ -199,7 +199,7 @@ curl -v -X POST http://localhost:<PORT>/assets \
 - the **data** key of the JSON payload MUST be the **base64** value of the file for uploading via **jsonAssetRouter**
   - gitbash
      ```ruby
-     base64 -w 0 C:<filepath>/<filename-with-extension>
+      
      ```
 - **To turn m1as rate limiter off** you must add **M1AS_RATE_LIMIT=off** to your **environment variables**. The m1as rate limiter defaults to ON, when not explicitly set to OFF. 
 ---

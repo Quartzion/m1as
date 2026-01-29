@@ -3,6 +3,7 @@ import { AssetId, AssetRecord } from "./types.js";
 export interface AssetUploadInput {
   buffer: Buffer;
   filename: string;
+  displayName: string;
   mimeType: string;
   size: number;
 
@@ -14,6 +15,7 @@ export interface AssetStorageAdapter {
   save(input: {
     buffer: Buffer;
     filename: string;
+    displayName: string;
     mimeType: string;
   }): Promise<{
     storagePath: string;

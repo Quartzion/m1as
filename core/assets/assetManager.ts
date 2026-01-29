@@ -13,6 +13,7 @@ import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
 import { normalizeFilename } from "../utils/normalizeFilename.js";
+import { normalizeDisplayName } from "../utils/normalizeDisplayName.js";
 
 export class AssetManager {
   constructor(
@@ -46,6 +47,7 @@ export class AssetManager {
     return {
       id: asset.id,
       filename: asset.filename,
+      displayName: asset.displayName,
       mimeType: asset.mimeType,
       size: asset.size,
       createdAt: asset.createdAt,
@@ -113,20 +115,37 @@ export class AssetManager {
     const now = new Date();
 
 
-
+    // normalize file name
     const normalized = normalizeFilename(input.filename, {
       mode: "sanitize",
       fallbackExtension: ".bin"
     });
 
     if (normalized.sanitized) {
-      this.log("warn", "Filename sanitized", {
-      event: "FILENAME_SANITIZED",
-      original: normalized.original,
-      filename: normalized.filename,
-      reason: normalized.reason
+        this.log("warn", "Filename sanitized", {
+        event: "FILENAME_SANITIZED",
+        original: normalized.original,
+        filename: normalized.filename,
+        reason: normalized.reason
       });
-    }
+    };
+
+    // normalize displayName
+    const displayNameNormalized = normalizeDisplayName(input.displayName, {
+      mode: "sanitize",
+      fallbackExtension: ".bin"
+    });
+
+    if (displayNameNormalized.sanitized) {
+        this.log("warn", "displayName sanitized", {
+        event: "DISPLAY_NAME_SANITIZED",
+        original: displayNameNormalized.original,
+        displayName: displayNameNormalized.displayName,
+        reason: displayNameNormalized.reason
+      });
+
+    };
+
 
     let stored;
     try {
@@ -134,6 +153,7 @@ export class AssetManager {
       stored = await this.storage.save({
         buffer: input.buffer,
         filename: normalized.filename,
+        displayName: displayNameNormalized.displayName,
         mimeType: input.mimeType
       });
 
@@ -141,6 +161,7 @@ export class AssetManager {
       const asset: AssetRecord = {
         id,
         filename: normalized.filename, 
+        displayName: displayNameNormalized.displayName,
         mimeType: input.mimeType,
         size: input.size,
         storagePath: stored.storagePath,
@@ -167,6 +188,7 @@ export class AssetManager {
         event: "UPLOAD_SUCCESS",
         assetId: id,
         filename: input.filename,
+        displayName: input.displayName,
         size: input.size,
         ownerId: input.ownerId,
         visibility: asset.visibility,
@@ -188,6 +210,7 @@ export class AssetManager {
         event: "UPLOAD_FAIL",
         assetId: id,
         filename: input.filename,
+        displayName: input.displayName,
         ownerId: input.ownerId,
         error: err.message,
         timestamp: new Date().toISOString()
@@ -246,9 +269,14 @@ export class AssetManager {
     id: string,
     requesterOwnerId?: string
   ): Promise<
-    | { status: "ok"; file: { buffer: Buffer; filename: string; mimeType: string } }
-    | { status: "not_found" }
-    | { status: "forbidden" }
+    | { status: "ok"; 
+        file: { 
+          buffer: Buffer; 
+          filename: string; 
+          displayName: string; 
+          mimeType: string } }
+      | { status: "not_found" }
+      | { status: "forbidden" }
   > {
     const asset = await this.get(id);
     const now = new Date();
@@ -313,7 +341,12 @@ export class AssetManager {
 
     return {
       status: "ok",
-      file
+      file: {
+        buffer: file.buffer,
+        filename: file.filename,
+        displayName: asset.displayName,
+        mimeType: file.mimeType
+      }
     };
   }
 

@@ -97,6 +97,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     const asset = await this.options.assetManager.upload({
       buffer: req.file.buffer,
       filename: req.file.originalname,
+      displayName: req.file.original_display_name,
       mimeType,
       size: req.file.size,
       ownerId: this.ownerId(req),
@@ -146,7 +147,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     res.setHeader("Content-Type", result.file.mimeType);
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${result.file.filename}"`
+      `inline; displayName="${result.file.displayName}"`
     );
 
     const bufferStream = new PassThrough();

@@ -4,20 +4,22 @@ export type AssetVisibility = "private" | "public";
 
 export interface AssetRecord {
  readonly id: AssetId;
- readonly  filename: string;
+ readonly filename: string;
+ readonly displayName: string;
  readonly mimeType: string;
  readonly size: number;
  readonly storagePath: string;
  readonly publicUrl?: string;
- readonly  ownerId?: string;
+ readonly ownerId?: string;
  readonly visibility: AssetVisibility;
- readonly  createdAt: Date;
+ readonly createdAt: Date;
  readonly updatedAt: Date;
 }
 
 export type PublicAssetMetadata = {
   id: string;
   filename: string;
+  displayName: string;
   mimeType: string;
   size: number;
   createdAt: Date;
