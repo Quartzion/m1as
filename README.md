@@ -235,7 +235,7 @@ curl -v -X POST http://localhost:<PORT>/assets \
 m1as-user-id
 # payload
 {
-  "filename": "json-test.png",
+  "displayName": "json-test.png",
   "mimeType": "image/png",
   "visibility": "public",
 	"data": "<base64-image>"
@@ -272,6 +272,22 @@ M1AS_RL_READ_MAX=3
 M1AS_RL_DELETE_MAX=2
 M1AS_RATE_LIMIT=on
 #vales: on | off
+```
+---
+## Data Structure
+```ruby
+AssetRecord {
+ readonly id: AssetId;                      ← m1as asset id (system handled)
+ readonly displayName: string;              ← user displayName (user input)
+ readonly mimeType: string;                 ← file type (system handled)
+ readonly size: number;                     ← file size (system handled)
+ readonly storagePath: string;              ← GridFS ObjectId (system handled)
+ readonly publicUrl?: string;               ← m1as public url (system handled)
+ readonly ownerId?: string;                 ← m1as ownerId (m1as-user-id header)
+ readonly visibility: AssetVisibility;      ← file visibility - public/private (user input)
+ readonly createdAt: Date;                  ← internal creation date (system handled)
+ readonly updatedAt: Date;                  ← internal update time (system handled)
+}
 ```
 ---
 

@@ -34,7 +34,7 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
       throw new HttpError(401, "Unauthorized");
     }
 
-    const allowedFields = ["filename", "displayName", "mimeType", "visibility", "data"];
+    const allowedFields = ["displayName", "mimeType", "visibility", "data"];
     const bodyKeys = Object.keys(req.body ?? {});
     const unexpected = bodyKeys.filter(k => !allowedFields.includes(k));
 
@@ -45,7 +45,7 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
       );
     }
 
-    const { filename, displayName, mimeType, visibility, data } = req.body ?? {};
+    const { displayName, mimeType, visibility, data } = req.body ?? {};
 
     if (!data || typeof data !== "string") {
       throw new HttpError(400, "Base64 data is required");
@@ -67,7 +67,6 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
 
     const asset = await this.options.assetManager.upload({
       buffer,
-      filename,
       displayName,
       mimeType,
       size: buffer.length,

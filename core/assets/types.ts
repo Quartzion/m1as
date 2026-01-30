@@ -4,7 +4,6 @@ export type AssetVisibility = "private" | "public";
 
 export interface AssetRecord {
  readonly id: AssetId;
- readonly filename: string;
  readonly displayName: string;
  readonly mimeType: string;
  readonly size: number;
@@ -18,7 +17,6 @@ export interface AssetRecord {
 
 export type PublicAssetMetadata = {
   id: string;
-  filename: string;
   displayName: string;
   mimeType: string;
   size: number;

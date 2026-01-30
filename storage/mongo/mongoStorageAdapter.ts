@@ -24,9 +24,9 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
   }
 
   // Save file buffer to GridFS
-  async save(input: { buffer: Buffer; filename: string; mimeType: string }): Promise<StoredFile> {
+  async save(input: { buffer: Buffer; displayName: string; mimeType: string }): Promise<StoredFile> {
     return new Promise((resolve, reject) => {
-      const uploadStream = this.bucket.openUploadStream(input.filename, {
+      const uploadStream = this.bucket.openUploadStream(input.displayName, {
         metadata: { contentType: input.mimeType },
       });
 
@@ -55,7 +55,7 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
   }
 
   // Retrieve file buffer from GridFS
-  async get(id: string): Promise<{ buffer: Buffer; filename: string; mimeType: string } | null> {
+  async get(id: string): Promise<{ buffer: Buffer; displayName: string; mimeType: string } | null> {
     return new Promise((resolve, reject) => {
       const _id = new ObjectId(id);
       const chunks: Buffer[] = [];
@@ -69,7 +69,7 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
           if (!files || files.length === 0) return resolve(null);
           resolve({
             buffer: Buffer.concat(chunks),
-            filename: files[0].filename,
+            displayName: files[0].filename,
             mimeType: (files[0].metadata as any)?.contentType || "application/octet-stream"
           });
         } catch (err) {

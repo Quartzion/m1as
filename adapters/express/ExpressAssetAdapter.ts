@@ -96,7 +96,6 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     const asset = await this.options.assetManager.upload({
       buffer: req.file.buffer,
-      filename: req.file.originalname,
       displayName: req.file.original_display_name,
       mimeType,
       size: req.file.size,

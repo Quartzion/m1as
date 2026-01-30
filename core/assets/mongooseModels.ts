@@ -5,7 +5,7 @@ export interface AssetDoc extends AssetRecord, Document {}
 
 const AssetSchema = new Schema<AssetDoc>({
   id: { type: String, required: true, unique: true, immutable: true },
-  filename: { type: String, required: true, maxlength: 255 },
+  displayName: { type: String, required: true, maxlength: 255 },
   mimeType: { type: String, required: true, maxlength: 100 },
   size: { type: Number, required: true },
   storagePath: { type: String, required: true, maxlength: 512 },

@@ -12,7 +12,6 @@ import {
 import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
-import { normalizeFilename } from "../utils/normalizeFilename.js";
 import { normalizeDisplayName } from "../utils/normalizeDisplayName.js";
 
 export class AssetManager {
@@ -46,7 +45,6 @@ export class AssetManager {
   private toPublicMetadata(asset: AssetRecord): PublicAssetMetadata {
     return {
       id: asset.id,
-      filename: asset.filename,
       displayName: asset.displayName,
       mimeType: asset.mimeType,
       size: asset.size,
@@ -115,21 +113,6 @@ export class AssetManager {
     const now = new Date();
 
 
-    // normalize file name
-    const normalized = normalizeFilename(input.filename, {
-      mode: "sanitize",
-      fallbackExtension: ".bin"
-    });
-
-    if (normalized.sanitized) {
-        this.log("warn", "Filename sanitized", {
-        event: "FILENAME_SANITIZED",
-        original: normalized.original,
-        filename: normalized.filename,
-        reason: normalized.reason
-      });
-    };
-
     // normalize displayName
     const displayNameNormalized = normalizeDisplayName(input.displayName, {
       mode: "sanitize",
@@ -152,7 +135,6 @@ export class AssetManager {
       // Save file bytes first
       stored = await this.storage.save({
         buffer: input.buffer,
-        filename: normalized.filename,
         displayName: displayNameNormalized.displayName,
         mimeType: input.mimeType
       });
@@ -160,7 +142,6 @@ export class AssetManager {
       // Construct asset record
       const asset: AssetRecord = {
         id,
-        filename: normalized.filename, 
         displayName: displayNameNormalized.displayName,
         mimeType: input.mimeType,
         size: input.size,
@@ -187,7 +168,6 @@ export class AssetManager {
       this.log("info", "Asset Upload Succeeded",{
         event: "UPLOAD_SUCCESS",
         assetId: id,
-        filename: input.filename,
         displayName: input.displayName,
         size: input.size,
         ownerId: input.ownerId,
@@ -209,7 +189,6 @@ export class AssetManager {
       this.log("error","Asset Upload Failed",{
         event: "UPLOAD_FAIL",
         assetId: id,
-        filename: input.filename,
         displayName: input.displayName,
         ownerId: input.ownerId,
         error: err.message,
@@ -272,7 +251,6 @@ export class AssetManager {
     | { status: "ok"; 
         file: { 
           buffer: Buffer; 
-          filename: string; 
           displayName: string; 
           mimeType: string } }
       | { status: "not_found" }
@@ -343,7 +321,6 @@ export class AssetManager {
       status: "ok",
       file: {
         buffer: file.buffer,
-        filename: file.filename,
         displayName: asset.displayName,
         mimeType: file.mimeType
       }
