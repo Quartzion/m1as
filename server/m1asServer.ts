@@ -12,6 +12,7 @@ import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
 import { createLogger } from "../core/logging/createLogger.js";
 import { m1asConfig } from "../config/m1asConfig.js";
 import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
+import { PublicError } from "../core/middleware/publicErrorHandler.js";
 
 const PORT = m1asConfig.m1asServerPort;
 let isReady = false;
@@ -146,10 +147,12 @@ async function startServer() {
 
   // --- logging ---
   app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const status =
-      err.statusCode ??
-      err.status ??
-      (err.message?.includes("required") ? 400 : 500);
+   
+    const isPublic = err instanceof PublicError;
+
+    const status = isPublic ?
+      err.statusCode :
+      err.statusCode ?? 500;
 
     logger?.({
       level: status >= 500 ? "error" : "warn",
@@ -161,7 +164,8 @@ async function startServer() {
     });
 
     res.status(status).json({
-      error: err.message ?? "Internal Server Error"
+      error: isPublic ? err.message : "internal server error",
+      ...(isPublic && err.code ? { code: err.code } : {})
     });
   });
 

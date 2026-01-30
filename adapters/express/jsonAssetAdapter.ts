@@ -1,7 +1,8 @@
 import { AssetHttpAdapter } from "../AssetHttpAdapter.js";
 import { AssetManager } from "../../core/assets/AssetManager.js";
 import { m1asConfig } from "../../config/m1asConfig.js";
-import { HttpError } from "../../core/http/HttpError.js";
+// import { HttpError } from "../../core/http/HttpError.js";
+import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 
 export class JsonAssetAdapter implements AssetHttpAdapter {
     constructor(
@@ -11,13 +12,13 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
         }
     ) { }
     getMetadata(req: any, res: any): Promise<void> {
-        throw new Error("Method not implemented.");
+        throw new PublicError("Method not implemented.", 501, "METHOD_NOT_IMPLEMENTED");
     }
     getFile(req: any, res: any): Promise<void> {
-        throw new Error("Method not implemented.");
+        throw new PublicError("Method not implemented.", 501, "METHOD_NOT_IMPLEMENTED");
     }
     delete(req: any, res: any): Promise<void> {
-        throw new Error("Method not implemented.");
+        throw new PublicError("Method not implemented.", 501, "METHOD_NOT_IMPLEMENTED");
     }
 
     private ownerId(req: any): string | undefined {
@@ -31,7 +32,7 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
     async upload(req: any, res: any) {
     const ownerId = this.ownerId(req);
     if (!ownerId) {
-      throw new HttpError(401, "Unauthorized");
+      throw new PublicError("Unauthorized", 401, "ACCESS_DEINIED");
     }
 
     const allowedFields = ["displayName", "mimeType", "visibility", "data"];
@@ -39,29 +40,31 @@ export class JsonAssetAdapter implements AssetHttpAdapter {
     const unexpected = bodyKeys.filter(k => !allowedFields.includes(k));
 
     if (unexpected.length) {
-      throw new HttpError(
+      throw new PublicError(
+        `Unexpected fields`,
         400,
-        `Unexpected fields: ${unexpected.join(", ")}`
+        "UNEXPECTED_FIELDS"
       );
     }
 
     const { displayName, mimeType, visibility, data } = req.body ?? {};
 
     if (!data || typeof data !== "string") {
-      throw new HttpError(400, "Base64 data is required");
+      throw new PublicError("Base64 data is required",400, "FILE_NOT_BASE64");
     }
 
     if (!/^[A-Za-z0-9+/=]+$/.test(data)) {
-      throw new HttpError(400, "Invalid base64 encoding");
+      throw new PublicError("Invalid base64 encoding", 400, "INVALID_BASE64");
     }
 
     const buffer = Buffer.from(data, "base64");
 
     const maxSize = m1asConfig.maxJsonUploadBytes ?? 2 * 1024 * 1024;
     if (buffer.length > maxSize) {
-      throw new HttpError(
+      throw new PublicError(
+        `JSON upload exceeds the maximum allowed bytes`,
         413,
-        `JSON upload exceeds ${maxSize} bytes`
+        "FILE_TOO_LARGE"
       );
     }
 

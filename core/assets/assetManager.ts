@@ -13,6 +13,7 @@ import { randomUUID } from "crypto";
 import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
 import { normalizeDisplayName } from "../utils/normalizeDisplayName.js";
+import { PublicError } from "../middleware/publicErrorHandler.js";
 
 export class AssetManager {
   constructor(
@@ -66,7 +67,7 @@ export class AssetManager {
   private validateUpload(input: AssetUploadInput) {
     // Buffer checks
     if (!input.buffer || input.buffer.length === 0) {
-      throw new Error("Asset buffer is required");
+      throw new PublicError("Asset buffer is required", 400, "MISSING_ASSET_BUFFER");
     }
 
     // MIME type allowlist
@@ -79,19 +80,19 @@ export class AssetManager {
         "image/webp"
       ];
     if (!input.mimeType || !allowedMimeTypes.includes(input.mimeType)) {
-      throw new Error(`MIME type not allowed: ${input.mimeType}`);
+      throw new PublicError(`MIME type not allowed`, 400, "FILE_TYPE_RESTRICTED");
     }
 
     // Size checks
     if (!input.size || input.size <= 0) {
-      throw new Error("Invalid file size");
+      throw new PublicError("Invalid file size", 400, "INVALID_FILE_SIZE");
     }
     if (input.size !== input.buffer.length) {
-      throw new Error("File size mismatch");
+      throw new PublicError("File size mismatch", 400, "FILE_SIZE_MISMATCH");
     }
     const maxFileSize = m1asConfig.maxFileSizeBytes || 10 * 1024 * 1024;
     if (input.size > maxFileSize) {
-      throw new Error(`File exceeds maximum size of ${maxFileSize} bytes`);
+      throw new PublicError(`File exceeds maximum size permitted`, 400, "FILE_TOO_LARGE");
     }
 
     // OwnerId checks (optional, but must be valid if provided)
@@ -100,7 +101,7 @@ export class AssetManager {
         typeof input.ownerId !== "string" ||
         input.ownerId.trim() === ""
       ) {
-        throw new Error("ownerId must be a non-empty string if provided");
+        throw new PublicError("ownerId must be a non-empty string if provided", 400, "M1AS-USER-ID_MUST_NOT_BE_EMPTY");
       }
     }
   }

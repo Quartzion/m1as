@@ -6,7 +6,8 @@ import { pipeline } from "stream";
 import { promisify } from "util";
 import { PassThrough } from "stream";
 import { AssetManager } from "../../core/assets/AssetManager.js";
-import { HttpError } from "../../core/http/HttpError.js";
+// import { HttpError } from "../../core/http/HttpError.js";
+import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -56,13 +57,13 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       await this.runMulter(req, res);
     } catch (err: any) {
       if (err instanceof multer.MulterError) {
-        throw new HttpError(400, err.message);
+        throw new PublicError("run_multer_error", 400, "RUN_MULTER_ERROR");
       }
       throw err;
     }
 
     if (!req.file) {
-      throw new HttpError(400, "Missing file field");
+      throw new PublicError("Missing_file_field", 400, "MISSING_FILE_FIELD");
     }
 
     const allowedFields = m1asConfig.multipartAllowedFields ?? [];
@@ -72,9 +73,10 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       const unexpected = keys.filter(k => !allowedFields.includes(k));
 
       if (unexpected.length > 0) {
-        throw new HttpError(
+        throw new PublicError(
+          `Unexpected form fields`,
           400,
-          `Unexpected form fields: ${unexpected.join(", ")}`
+          "INVALID_MULTIPART"
         );
       }
     }
@@ -118,7 +120,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     );
 
     if (!asset) {
-      throw new HttpError(404, "Not found");
+      throw new PublicError("Not_found", 404, "NOT_FOUND");
     }
 
     res.json(asset);
@@ -136,17 +138,17 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     );
 
     if (result.status === "not_found") {
-      throw new HttpError(404, "File not found");
+      throw new PublicError("Not_found", 404, "FILE_NOT_FOUND");
     }
 
     if (result.status === "forbidden") {
-      throw new HttpError(403, "Access denied");
+      throw new PublicError("Access_denied", 403, "ACCESS_DENIED");
     }
 
     res.setHeader("Content-Type", result.file.mimeType);
     res.setHeader(
       "Content-Disposition",
-      `inline; displayName="${result.file.displayName}"`
+      `inline; filename="${encodeURIComponent(result.file.displayName)}"`
     );
 
     const bufferStream = new PassThrough();
