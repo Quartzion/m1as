@@ -123,8 +123,6 @@ These concerns are intentionally deferred to the **hardening phase**.
       mongoAssetRepo.ts
       mongooseModels.ts
       types.ts
-  /http
-    /HttpErrors.ts
   /logging
     /createLogger.ts
   /middleware
@@ -342,10 +340,10 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 │
 ├─ config/
 |  └─ m1asConfig.ts                 ← configuration settings
+|
 ├─ core/
 |  |
 |  ├─ assets/
-|  |    |
 │  |    ├─ assetManager.ts          ← storage + validation
 │  |    ├─ mongoAssetRepo.ts        ← MongoDB logic
 │  |    ├─ index.ts
@@ -353,14 +351,13 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 │  |    ├─ contracts.ts
 │  |    └─ types.ts
 |  |
-|  ├─ http/
-|  |    └─ HttpError.ts             ← formatting logs for m1as logger.
 │  |
 |  ├─ logging/
 |  |    └─ createLogger.ts          ← m1as logger.
 |  |
 |  ├─ middleware/
-|  |    └─ rateLimitMiddleware.ts   ← m1as rate limiter.
+|  |    ├─ rateLimitMiddleware.ts   ← m1as rate limiter.
+|  |    └─ publicErrorHandler.ts    ← m1as public error handling.
 |  |
 |  ├─ rateLimiter/
 |  |    └─ rateLimit.ts             ← rate limits factory.

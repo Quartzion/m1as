@@ -1,6 +1,6 @@
 import { RateLimiter } from "../../core/rateLimiter/rateLimiter.js";
-import { HttpError } from "../../core/http/HttpError.js";
 import { m1asConfig } from "../../config/m1asConfig.js";
+import { PublicError } from "./publicErrorHandler.js";
 
 export function createRateLimit({
     max,
@@ -20,7 +20,7 @@ export function createRateLimit({
 
         if (!limiter.check(key)) {
 
-            return next(new HttpError(429, "Rate limit exceeded"));
+            return next(new PublicError("Rate limit exceeded", 429, "RATE_LIMIT_EXCEEDED"));
         }
 
         next();

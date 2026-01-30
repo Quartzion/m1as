@@ -6,7 +6,6 @@ import { pipeline } from "stream";
 import { promisify } from "util";
 import { PassThrough } from "stream";
 import { AssetManager } from "../../core/assets/AssetManager.js";
-// import { HttpError } from "../../core/http/HttpError.js";
 import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 
 const pipelineAsync = promisify(pipeline);

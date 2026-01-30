@@ -1,7 +1,6 @@
 import { AssetHttpAdapter } from "../AssetHttpAdapter.js";
 import { AssetManager } from "../../core/assets/AssetManager.js";
 import { m1asConfig } from "../../config/m1asConfig.js";
-// import { HttpError } from "../../core/http/HttpError.js";
 import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 
 export class JsonAssetAdapter implements AssetHttpAdapter {
