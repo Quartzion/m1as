@@ -14,6 +14,9 @@ import { m1asConfig } from "../config/m1asConfig.js";
 import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
 import { PublicError } from "../core/middleware/publicErrorHandler.js";
 
+const NODE_ENV = process.env.NODE_ENV ?? "development"
+const isProd = NODE_ENV === "production";
+
 const PORT = m1asConfig.m1asServerPort;
 let isReady = false;
 
@@ -58,6 +61,13 @@ async function startServer() {
       level: "info",
       msg: "MongoDB connected"
     });
+
+    logger?.({
+      level: "info",
+      msg: "server environment",
+      NODE_ENV
+    });
+
   } catch (err) {
     logger?.({
       level: "error",
@@ -147,7 +157,7 @@ async function startServer() {
 
   // --- logging ---
   app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-   
+
     const isPublic = err instanceof PublicError;
 
     const status = isPublic ?
@@ -164,7 +174,12 @@ async function startServer() {
     });
 
     res.status(status).json({
-      error: isPublic ? err.message : "internal server error",
+      error:
+        isPublic
+          ? err.message
+          : isProd
+            ? "internal server error"
+            : err.message ?? "internal server error",
       ...(isPublic && err.code ? { code: err.code } : {})
     });
   });
