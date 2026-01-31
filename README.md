@@ -123,23 +123,28 @@ These concerns are intentionally deferred to the **hardening phase**.
       mongoAssetRepo.ts
       mongooseModels.ts
       types.ts
-  /logging
-    /createLogger.ts
-  /middleware
-    /rateLimitMiddleware.ts
-  /rateLimiter
-    /rateLimiter.ts
+    /logging
+      createLogger.ts
+    /middleware
+      rateLimitMiddleware.ts
+      publicErrorHandler.ts
+    /rateLimiter
+      rateLimiter.ts
+    /security
+      SignedUrlService.ts
+    /utils
+      normalizeDisplayName.ts
+      normalizeFilename.ts
   /logs
-    /m1as.log
+    m1as.log
   /storage
     /mongo
       mongoStorageAdapter.ts
   /server
-    /m1asServer.ts
     /db
-      /mongoClient.ts
+       mongoClient.ts
+    m1asServer.ts
 ```
-
 ---
 
 ## Environment Requirements
@@ -179,11 +184,15 @@ npm run m1asTest
      - m1asServerPort             ← sets the server port m1as runs on.
      - rateLimit: {               ← rate limiter settings.
        - windowMs                 ← sets the lock out period length when limit is reached. Default / fallback - 20 min.
-       - uploadMax:               ← sets upload max value. Default / fallback - 10 uploads.
-       - readMax:                 ← sets the get max value. Default / fallback - 60 retrieves.
-       - deleteMax:               ← sets the delete max value. Default / fallback - 10 deletes.
-       - enabled:                 ← turns on / off the rate limiter. Default / fall back to TRUE (on).
+       - uploadMax                ← sets upload max value. Default / fallback - 10 uploads.
+       - readMax                  ← sets the get max value. Default / fallback - 60 retrieves.
+       - deleteMax                ← sets the delete max value. Default / fallback - 10 deletes.
+       - enabled                  ← turns on / off the rate limiter. Default / fall back to TRUE (on).
       }
+    -   signedUrl: {
+       - secret                  ← M1AS_SIGNED_URL_SECRET
+       - defaultTTL              ← Default / fall back to 300.
+  }
 - **visibility defaults to private** 
      - when a file is uploaded and the visibility is not set to public via the headers (for multipart form submissions) or in the JSON payload, the visibility will default to private. 
      - In order to set the visibility to public via the API, use the jsonAssetRouter with the JSON body demonstrated later below.
@@ -288,7 +297,20 @@ AssetRecord {
 }
 ```
 ---
+## m1as security / policy details
+1️⃣ both signed and unsigned routes are **available** to serve different trust models.
+2️⃣ m1as does not use a global on/off switch for signed URLs; enforcement is policy-based, not configurational.
+3️⃣ m1as enforces core security policies, but does not enforce signed-URL-mandatory delivery rules.
+4️⃣ m1as intentionally allows consumers to define and enforce their own signed-URL policies without modifying core code.
+5️⃣ Signed URLs provide identity-less, time-bound access; unsigned routes provide identity-based access.
 
+✅ m1as fully enforces signature validity and expiration when a signed route is used
+✅ m1as does not enforce a global access policy that requires signed URLs for all access
+✅ This allows implementers to:
+ - Use signed URLs only for external sharing
+ - Keep unsigned routes for trusted/internal access
+ - Layer stricter policies outside m1as if needed
+---
 ## Versioning
 
 This repository represents:
@@ -361,6 +383,9 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  |
 |  ├─ rateLimiter/
 |  |    └─ rateLimit.ts             ← rate limits factory.
+|  |
+|  ├─ security/
+|  |    └─ SignedUrlService.ts      ← m1as signed URL service.
 ├─ logs/
 |  └─ m1as.log                      ← m1asLogger log file location. For use when M1AS_LOGGER=file.
 │  

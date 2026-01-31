@@ -10,6 +10,7 @@ import { JsonAssetAdapter } from "../adapters/express/jsonAssetAdapter.js";
 import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
 import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
 import { createLogger } from "../core/logging/createLogger.js";
+import { SignedUrlService } from "../core/security/SignedUrlService.js";
 import { m1asConfig } from "../config/m1asConfig.js";
 import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
 import { PublicError } from "../core/middleware/publicErrorHandler.js";
@@ -94,6 +95,10 @@ async function startServer() {
     logger
   );
 
+  const signedUrlService = new SignedUrlService(
+    process.env.SIGNED_URL_SECRET || "m1as-sEcReT-kEy"
+  );
+
   // ---- Owner resolver (single source of truth) ----
   const getOwnerId = (req: express.Request): string => {
     const raw = req.headers["m1as-user-id"];
@@ -114,12 +119,13 @@ async function startServer() {
   // ---- Multipart API ----
   app.use(
     "/assets",
-    uploadRateLimit,
-    readRateLimit,
-    deleteRateLimit,
     createAssetRouter({
       assetManager,
-      getOwnerId
+      signedUrlService,
+      getOwnerId,
+      uploadRateLimit,
+      readRateLimit,
+      deleteRateLimit
     })
   );
 
@@ -131,6 +137,7 @@ async function startServer() {
 
   app.use("/assets/json",
     uploadRateLimit,
+    
     createJsonAssetRouter(jsonAdapter));
 
   // ---- Health check ----

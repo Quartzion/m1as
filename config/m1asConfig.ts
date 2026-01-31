@@ -15,6 +15,10 @@ export const m1asConfig = {
     readMax: Number(process.env.M1AS_RL_READ_MAX) ?? 60, // default 60 reads
     deleteMax: Number(process.env.M1AS_RL_DELETE_MAX) ?? 10, // default 10 delets
     enabled: process.env.M1AS_RATE_LIMIT !== "off" // default to on. to turn off explicitly set to M1AS_RATE_LIMIT=off
+  },
+  signedUrl: {
+    secret: process.env.M1AS_SIGNED_URL_SECRET!,
+    defaultTTL: 300
   }
 };
 
