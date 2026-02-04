@@ -1,3 +1,4 @@
+import { Readable } from "stream";
 import {
   AssetStorageAdapter,
   AssetRepository,
@@ -327,6 +328,41 @@ export class AssetManager {
       }
     };
   }
+
+  // get stream by id
+  async getStreamById(
+    id: string,
+    requesterOwnerId: string
+  ): Promise<
+  | {status: "ok"; stream: Readable, size: number, mimeType: string, displayName: string}
+  | {status: "not_found"}
+  | {status: "forbidden"}
+  >{
+    const asset = await this.get(id)
+    if(!asset) return {status: "not_found"}
+  
+    if(asset.visibility === "private" && requesterOwnerId !== asset.ownerId) {
+      return { status: "forbidden"}
+    }
+
+    try {
+      const fileStream = await this.storage.getStream(asset.storagePath);
+      return {
+        status: "ok",
+        stream: fileStream,
+        size: asset.size,
+        mimeType: asset.mimeType,
+        displayName: asset.displayName
+      };
+    } catch (err: any) {
+      if(err.code === "ENOENT" || err.message?.includes("fileNotFound")) {
+        return { status: "not_found"};
+      }
+      throw err;
+    }
+  }
+
+  
 
   async delete(id: string): Promise<"deleted" | "not_found"> {
     const asset = await this.repository.findById(id);

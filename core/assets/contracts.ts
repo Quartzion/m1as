@@ -1,4 +1,5 @@
 import { AssetId, AssetRecord } from "./types.js";
+import { Readable } from "stream";
 
 export interface AssetUploadInput {
   buffer: Buffer;
@@ -20,6 +21,7 @@ export interface AssetStorageAdapter {
     publicUrl?: string;
   }>;
   get(storagePath: string): Promise<{ buffer: Buffer; displayName: string; mimeType: string } | null>;
+  getStream(storagePath: string): Promise<Readable>;
   delete(storagePath: string): Promise<void>;
 }
 

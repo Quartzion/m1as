@@ -235,11 +235,15 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       throw new PublicError("Access_Denied", 403, "ACCESS_DENIED")
     }
 
+    const result = await this.options.assetManager.getStreamById(id, /* ownerId */ "");
+    if (result.status === "not_found") throw new PublicError("Not_Found", 404, "NOT_FOUND");
+    if (result.status === "forbidden") throw new PublicError("Access_Denied", 403, "ACCESS_DENIED");
+
     await streamAsset({
       headers: req.headers,
-      filePath: asset.storagePath,
-      fileSize: asset.size,
-      mimeType: asset.mimeType,
+      stream: result.stream,
+      fileSize: result.size,
+      mimeType: result.mimeType,
       writeHead: (status, headers) => res.writeHead(status, headers),
       pipe: (stream) => stream.pipe(res),
       end: () => res.end()

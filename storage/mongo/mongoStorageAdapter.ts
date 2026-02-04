@@ -79,6 +79,21 @@ export class MongoStorageAdapter implements AssetStorageAdapter {
     });
   }
 
+  async getStream(id: string): Promise<Readable> {
+    const _id = new ObjectId(id);
+
+    // Check if the file exists first
+    const files = await this.bucket.find({ _id }).toArray();
+    if (!files || files.length === 0) {
+      throw new Error("File not found");
+    }
+
+    // Return the GridFS readable stream
+    return this.bucket.openDownloadStream(_id);
+  }
+
+
+
   // Delete file from GridFS
   async delete(id: string): Promise<void> {
     const _id = new ObjectId(id);

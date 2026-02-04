@@ -2,7 +2,7 @@
 
 ## Overview
 
-**m1as (MERN-First Asset Service)** is a backend-first asset management service designed to validate a modular, production-oriented architecture for handling digital assets (uploads, storage, metadata, and retrieval) within a MERN ecosystem.
+**m1as (MERN-First Asset Service)** is a backend-first asset management service designed to validate a modular, production-oriented architecture for handling digital assets (uploads, storage, metadata, and retrieval) within a MERN ecosystem. m1as can streams assets over HTTP without persisting additional server-side copies.
 
 This framework focuses on:
 * Compatibility with modern Node.js LTS environments
