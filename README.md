@@ -134,7 +134,6 @@ These concerns are intentionally deferred to the **hardening phase**.
       SignedUrlService.ts
     /utils
       normalizeDisplayName.ts
-      normalizeFilename.ts
   /logs
     m1as.log
   /storage

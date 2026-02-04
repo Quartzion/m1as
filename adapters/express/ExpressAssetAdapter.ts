@@ -7,12 +7,14 @@ import { promisify } from "util";
 import { PassThrough } from "stream";
 import { AssetManager } from "../../core/assets/AssetManager.js";
 import { PublicError } from "../../core/middleware/publicErrorHandler.js";
-import { SignedUrlService } from "../../core/security/SignedUrlService.js";
+import { streamAsset } from "../../core/utils/StreamAsset.js";
 
 const pipelineAsync = promisify(pipeline);
 
+
 export class ExpressAssetAdapter implements AssetHttpAdapter {
   private uploadMiddleware;
+
 
   constructor(
     private options: {
@@ -53,16 +55,16 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // --------------------
   // SIGNED URL
   // --------------------
-  async getSignedUrl (req: any, res: any):Promise<void> {
+  async getSignedUrl(req: any, res: any): Promise<void> {
     const { id } = req.params;
     const asset = await this.options.assetManager.get(id);
-    if(!asset) {
+    if (!asset) {
       throw new PublicError("Not Found", 404, "NOT_FOUND")
     }
 
     // enforce visibility
-    if ( 
-      asset.visibility === "private" && 
+    if (
+      asset.visibility === "private" &&
       this.ownerId(req) !== asset.ownerId
     ) {
       throw new PublicError("Access Denied", 403, "ACCESS_DENIED");
@@ -70,11 +72,11 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     const ttlRaw = Number(req.query.ttl);
 
-    const ttl = 
+    const ttl =
       Number.isInteger(ttlRaw) && ttlRaw > 0
-      ? ttlRaw
-      : m1asConfig.signedUrl?.defaultTTL ?? 300;
-    
+        ? ttlRaw
+        : m1asConfig.signedUrl?.defaultTTL ?? 300;
+
     const expires = Math.floor(Date.now() / 1000) + ttl;
 
     const sig = this.options.signedUrlService.sign(
@@ -200,7 +202,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // --------------------
   // SIGNED FILE DELIVERY
   // --------------------
-  async getFileSigned(req: any, res: any):Promise<void> {
+  async getFileSigned(req: any, res: any): Promise<void> {
     const { id } = req.params;
     const { expires, sig } = req.query;
 
@@ -209,7 +211,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     }
 
     const expiresNum = Number(expires);
-    if(!Number.isFinite(expiresNum)){
+    if (!Number.isFinite(expiresNum)) {
       throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE")
     }
 
@@ -219,32 +221,29 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       sig
     );
 
-    if(!valid) {
+    if (!valid) {
       throw new PublicError("Access_Denied", 403, "SIGNATURE_INVALID");
     }
 
-    const asset =await this.options.assetManager.get(id);
-    if(!asset) {
+    const asset = await this.options.assetManager.get(id);
+    if (!asset) {
       throw new PublicError("Not_Found", 404, "NOT_FOUND")
     }
 
     // visibility invariant
-    if(asset.visibility === "private") {
+    if (asset.visibility === "private") {
       throw new PublicError("Access_Denied", 403, "ACCESS_DENIED")
     }
 
-    const file = await this.options.assetManager.getFileById(id);
-    if(file.status !== "ok") {
-      throw new PublicError("Not_Found", 404, "NOT_FOUND")
-    }
-
-    res.setHeader("content-type", file.file.mimeType);
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${encodeURIComponent(asset.displayName)}"`
-    );
-
-    res.end(file.file.buffer);
+    await streamAsset({
+      headers: req.headers,
+      filePath: asset.storagePath,
+      fileSize: asset.size,
+      mimeType: asset.mimeType,
+      writeHead: (status, headers) => res.writeHead(status, headers),
+      pipe: (stream) => stream.pipe(res),
+      end: () => res.end()
+    });
   }
 
   // --------------------
