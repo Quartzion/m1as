@@ -2,7 +2,7 @@
 
 ## Overview
 
-**m1as (MERN-First Asset Service)** is a backend-first asset management service designed to validate a modular, production-oriented architecture for handling digital assets (uploads, storage, metadata, and retrieval) within a MERN ecosystem. m1as can streams assets over HTTP without persisting additional server-side copies.
+**m1as (MERN-First Asset Service)** is a backend-first asset management service designed to validate a modular, production-oriented architecture for handling digital assets (uploads, storage, metadata, and retrieval) within a MERN ecosystem. m1as can streams assets over HTTP without persisting additional server-side copies. M1as supports signed url's. M1as signed urls function as A time-limited capability to access one immutable asset operation without identity context.
 
 This framework focuses on:
 * Compatibility with modern Node.js LTS environments
@@ -223,6 +223,21 @@ m1as comes with an internal rate limiter to help prevent abuse and restrict port
 - the m1as rate limiter **upload max** will **default** to **10 files** when the **environemnt variable** for **M1AS_RL_UPLOAD_MAX** is not set.
 - the m1as rate limiter **delete max** will **default** to **10 files** when the **environment variable** for **M1AS_RL_DELETE_MAX** is not set.
 - the m1as rate limiter **read max** will **default** to **60** when the **environment variable** for **M1AS_RL_READ_MAX** is not set.
+
+## m1as signed url details
+- Signed URLs are read-only
+- Signed URLs are public-asset only
+- signed URL cryptographically bind the following:
+  - assetId 
+    - prevents asset substitution
+  - operation (read)
+    -  prevents privilage escalation
+  - expiresAt
+    -  Prevents replay
+  - storageVersion 
+    - invalidates old URLs after rotation
+  - visibilitySnapshot
+    - prevents access to private assets  
 
 ## how to evaluate
 1. open a gitbash terminal and execute the npm scripts listed in the Getting Started section

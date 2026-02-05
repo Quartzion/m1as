@@ -8,6 +8,7 @@ import { PassThrough } from "stream";
 import { AssetManager } from "../../core/assets/AssetManager.js";
 import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 import { streamAsset } from "../../core/utils/StreamAsset.js";
+import { SignedUrlService } from "../../core/security/SignedUrlService.js";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -17,12 +18,26 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
 
   constructor(
+    
     private options: {
-      signedUrlService: any;
+
+      signedUrlService: SignedUrlService;
       assetManager: AssetManager;
       getOwnerId?: (req: any) => string | undefined;
     }
   ) {
+
+      // runtime safety guard (after options is assigned)
+  if (
+    !options.signedUrlService ||
+    typeof options.signedUrlService.verifyOrThrow !== "function" ||
+    typeof options.signedUrlService.sign !== "function"
+  ) {
+    throw new PublicError(
+      "ExpressAssetAdapter: invalid SignedUrlService instance injected"
+    );
+  }
+
     const allowedFields = m1asConfig.multipartAllowedFields ?? [];
 
     this.uploadMiddleware = multer({
@@ -215,7 +230,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE")
     }
 
-    const valid = this.options.signedUrlService.verify(
+    const valid = this.options.signedUrlService.verifyOrThrow(
       id,
       expiresNum,
       sig
