@@ -15,14 +15,25 @@ import { m1asConfig } from "../../config/m1asConfig.js";
 import { m1asLogger } from "../logging/createLogger.js";
 import { normalizeDisplayName } from "../utils/normalizeDisplayName.js";
 import { PublicError } from "../middleware/publicErrorHandler.js";
+import { StreamProvider, StreamRange } from "../stream/StreamProvider.js";
+import { SignedUrlService } from "../security/SignedUrlService.js";
 
 export class AssetManager {
   constructor(
+    private streamProvider: StreamProvider,
+    private signedUrlService: SignedUrlService,
     private storage: AssetStorageAdapter,
     private repository: AssetRepository,
     private cache?: AssetCache,
     private logger?: m1asLogger,
   ) { }
+
+  async openAssetStream(
+    assetId: string,
+    range?: StreamRange
+  ) {
+    return this.streamProvider.openStream(assetId, range);
+  }
 
   private log(
     level: "error" | "warn" | "info" | "debug",
@@ -122,7 +133,7 @@ export class AssetManager {
     });
 
     if (displayNameNormalized.sanitized) {
-        this.log("warn", "displayName sanitized", {
+      this.log("warn", "displayName sanitized", {
         event: "DISPLAY_NAME_SANITIZED",
         original: displayNameNormalized.original,
         displayName: displayNameNormalized.displayName,
@@ -164,10 +175,10 @@ export class AssetManager {
         await this.cache?.set(saved);
 
       } catch (err: any) {
-        this.log("warn","Cache write failure",{ event: "CACHE_FAIL", assetId: id, error: err.message });
+        this.log("warn", "Cache write failure", { event: "CACHE_FAIL", assetId: id, error: err.message });
       }
 
-      this.log("info", "Asset Upload Succeeded",{
+      this.log("info", "Asset Upload Succeeded", {
         event: "UPLOAD_SUCCESS",
         assetId: id,
         displayName: input.displayName,
@@ -188,7 +199,7 @@ export class AssetManager {
         }
       }
 
-      this.log("error","Asset Upload Failed",{
+      this.log("error", "Asset Upload Failed", {
         event: "UPLOAD_FAIL",
         assetId: id,
         displayName: input.displayName,
@@ -231,7 +242,7 @@ export class AssetManager {
       asset.visibility === "private" &&
       requesterOwnerId !== asset.ownerId
     ) {
-      this.log("info","Private Metadata Redacted",{
+      this.log("info", "Private Metadata Redacted", {
         event: "METADATA_REDACTED",
         assetId: id,
         requesterOwnerId,
@@ -250,19 +261,22 @@ export class AssetManager {
     id: string,
     requesterOwnerId?: string
   ): Promise<
-    | { status: "ok"; 
-        file: { 
-          buffer: Buffer; 
-          displayName: string; 
-          mimeType: string } }
-      | { status: "not_found" }
-      | { status: "forbidden" }
+    | {
+      status: "ok";
+      file: {
+        buffer: Buffer;
+        displayName: string;
+        mimeType: string
+      }
+    }
+    | { status: "not_found" }
+    | { status: "forbidden" }
   > {
     const asset = await this.get(id);
     const now = new Date();
 
     if (!asset) {
-      this.log("info","File not found",{ event: "FILE_GET_NOT_FOUND", assetId: id, timestamp: now });
+      this.log("info", "File not found", { event: "FILE_GET_NOT_FOUND", assetId: id, timestamp: now });
       return { status: "not_found" };
     }
 
@@ -271,7 +285,7 @@ export class AssetManager {
       asset.visibility === "private" &&
       requesterOwnerId !== asset.ownerId
     ) {
-      this.log("warn","File Access Restricted",{
+      this.log("warn", "File Access Restricted", {
         event: "FILE_GET_FORBIDDEN",
         assetId: id,
         requesterOwnerId,
@@ -288,7 +302,7 @@ export class AssetManager {
     } catch (err: any) {
       if (err.code === "ENOENT" || err.message?.includes("FileNotFound")) {
         // Treat missing file as "not found"
-        this.log("warn","Asset File Not Found",{
+        this.log("warn", "Asset File Not Found", {
           event: "FILE_GET_NOT_FOUND",
           assetId: id,
           reason: "storage-missing",
@@ -302,7 +316,7 @@ export class AssetManager {
     }
 
     if (!file) {
-      this.log("warn","File Asset missing",{
+      this.log("warn", "File Asset missing", {
         event: "FILE_GET_NOT_FOUND",
         assetId: id,
         reason: "storage-missing",
@@ -311,7 +325,7 @@ export class AssetManager {
       return { status: "not_found" };
     }
 
-    this.log("info","File Retrieved",{
+    this.log("info", "File Retrieved", {
       event: "FILE_GET_SUCCESS",
       assetId: id,
       ownerId: asset.ownerId,
@@ -332,43 +346,50 @@ export class AssetManager {
   // get stream by id
   async getStreamById(
     id: string,
-    requesterOwnerId: string
+    requesterOwnerId: string,
+    range?: StreamRange
   ): Promise<
-  | {status: "ok"; stream: Readable, size: number, mimeType: string, displayName: string}
-  | {status: "not_found"}
-  | {status: "forbidden"}
-  >{
-    const asset = await this.get(id)
-    if(!asset) return {status: "not_found"}
-  
-    if(asset.visibility === "private" && requesterOwnerId !== asset.ownerId) {
-      return { status: "forbidden"}
+    | { status: "ok"; stream: Readable, size: number, mimeType: string, displayName: string }
+    | { status: "not_found" }
+    | { status: "forbidden" }
+  > {
+    // const asset = await this.get(id)
+    const asset = await this.repository.findById(id);
+    if (!asset) return { status: "not_found" }
+
+    if (asset.visibility === "private" && requesterOwnerId !== asset.ownerId) {
+      return { status: "forbidden" }
     }
 
     try {
-      const fileStream = await this.storage.getStream(asset.storagePath);
+
+      const result = await this.streamProvider.openStream(
+        asset.storagePath,
+        range
+      );
+
       return {
         status: "ok",
-        stream: fileStream,
-        size: asset.size,
-        mimeType: asset.mimeType,
+        stream: result.stream,
+        size: result.size,
+        mimeType: result.contentType ?? asset.mimeType,
         displayName: asset.displayName
       };
     } catch (err: any) {
-      if(err.code === "ENOENT" || err.message?.includes("fileNotFound")) {
-        return { status: "not_found"};
+      if (err.code === "ENOENT" || err.message?.includes("fileNotFound")) {
+        return { status: "not_found" };
       }
       throw err;
     }
   }
 
-  
+
 
   async delete(id: string): Promise<"deleted" | "not_found"> {
     const asset = await this.repository.findById(id);
 
     if (!asset) {
-      this.log("info","Record not found",{
+      this.log("info", "Record not found", {
         event: "DELETE_NOT_FOUND",
         assetId: id,
         timestamp: new Date().toISOString()
@@ -382,7 +403,7 @@ export class AssetManager {
       await this.repository.deleteById(id);
       await this.cache?.delete(id);
 
-      this.log("info","Successful Delete",{
+      this.log("info", "Successful Delete", {
         event: "DELETE_SUCCESS",
         assetId: id,
         ownerId: asset.ownerId,
@@ -392,7 +413,7 @@ export class AssetManager {
 
       return "deleted";
     } catch (err: any) {
-      this.log("error","DELETE FAIL",{
+      this.log("error", "DELETE FAIL", {
         event: "DELETE_FAIL",
         assetId: id,
         error: err.message,

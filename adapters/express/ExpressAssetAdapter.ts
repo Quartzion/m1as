@@ -9,6 +9,8 @@ import { AssetManager } from "../../core/assets/AssetManager.js";
 import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 import { streamAsset } from "../../core/utils/StreamAsset.js";
 import { SignedUrlService } from "../../core/security/SignedUrlService.js";
+import { parseRangeHeader } from "../../core/utils/parseRange.js";
+import { StreamRange } from "../../core/stream/StreamProvider.js";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -18,7 +20,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
 
   constructor(
-    
+
     private options: {
 
       signedUrlService: SignedUrlService;
@@ -27,16 +29,16 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     }
   ) {
 
-      // runtime safety guard (after options is assigned)
-  if (
-    !options.signedUrlService ||
-    typeof options.signedUrlService.verifyOrThrow !== "function" ||
-    typeof options.signedUrlService.sign !== "function"
-  ) {
-    throw new PublicError(
-      "ExpressAssetAdapter: invalid SignedUrlService instance injected"
-    );
-  }
+    // runtime safety guard (after options is assigned)
+    if (
+      !options.signedUrlService ||
+      typeof options.signedUrlService.verifyOrThrow !== "function" ||
+      typeof options.signedUrlService.sign !== "function"
+    ) {
+      throw new PublicError(
+        "ExpressAssetAdapter: invalid SignedUrlService instance injected"
+      );
+    }
 
     const allowedFields = m1asConfig.multipartAllowedFields ?? [];
 
@@ -222,12 +224,12 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     const { expires, sig } = req.query;
 
     if (!expires || !sig) {
-      throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE")
+      throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE");
     }
 
     const expiresNum = Number(expires);
     if (!Number.isFinite(expiresNum)) {
-      throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE")
+      throw new PublicError("Invalid_signature", 400, "INVALID_SIGNATURE");
     }
 
     const valid = this.options.signedUrlService.verifyOrThrow(
@@ -241,19 +243,23 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     }
 
     const asset = await this.options.assetManager.get(id);
-    if (!asset) {
-      throw new PublicError("Not_Found", 404, "NOT_FOUND")
-    }
+    if (!asset) throw new PublicError("Not_Found", 404, "NOT_FOUND");
+    if (asset.visibility === "private") throw new PublicError("Access_Denied", 403, "ACCESS_DENIED");
 
-    // visibility invariant
-    if (asset.visibility === "private") {
-      throw new PublicError("Access_Denied", 403, "ACCESS_DENIED")
-    }
+    // Parse byte range header
+    const streamRange = parseRangeHeader(req.headers.range);
 
-    const result = await this.options.assetManager.getStreamById(id, /* ownerId */ "");
+    // Get stream from assetManager (uses GridFsStreamProvider)
+    const result = await this.options.assetManager.getStreamById(
+      id,
+      "",
+      streamRange
+    );
+
     if (result.status === "not_found") throw new PublicError("Not_Found", 404, "NOT_FOUND");
     if (result.status === "forbidden") throw new PublicError("Access_Denied", 403, "ACCESS_DENIED");
 
+    // Stream with proper headers
     await streamAsset({
       headers: req.headers,
       stream: result.stream,
@@ -263,7 +269,15 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       pipe: (stream) => stream.pipe(res),
       end: () => res.end()
     });
+
+    // dev logging
+    console.log(
+      "Incoming Range Header:",
+      req.headers.range
+    );
   }
+
+
 
   // --------------------
   // DELETE

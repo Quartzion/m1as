@@ -2,6 +2,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import express from "express";
 import http from "http";
+import { GridFSBucket } from "mongodb";
 
 import { AssetManager } from "../core/assets/AssetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
@@ -14,6 +15,7 @@ import { SignedUrlService } from "../core/security/SignedUrlService.js";
 import { m1asConfig } from "../config/m1asConfig.js";
 import { createRateLimit } from "../core/middleware/rateLimitMiddleware.js";
 import { PublicError } from "../core/middleware/publicErrorHandler.js";
+import { GridFsStreamProvider } from "../infrastructure/streams/GridFsStreamProvider.js";
 
 const NODE_ENV = process.env.NODE_ENV ?? "development"
 const isProd = NODE_ENV === "production";
@@ -52,11 +54,23 @@ async function startServer() {
     level: m1asConfig.logLevel as any
   });
 
+  let streamProvider;
+
   // ---- MongoDB connection ----
   try {
     await mongoose.connect(
       process.env.MONGO_URI || "mongodb://localhost:27017/m1as"
     );
+
+    if (!mongoose.connection.db) {
+      throw new Error("MongoDB connected but db handle is missing");
+    }
+
+    const bucket = new GridFSBucket(mongoose.connection.db, {
+      bucketName: "assets"
+    });
+
+     streamProvider = new GridFsStreamProvider(bucket);
 
     logger?.({
       level: "info",
@@ -88,15 +102,17 @@ async function startServer() {
   const storage = new MongoStorageAdapter();
   const repository = new MongoAssetRepo();
 
+  const signedUrlService = new SignedUrlService(
+    process.env.SIGNED_URL_SECRET || "m1as-sEcReT-kEy"
+  );
+
   const assetManager = new AssetManager(
+    streamProvider,
+    signedUrlService,
     storage,
     repository,
     undefined,
     logger
-  );
-
-  const signedUrlService = new SignedUrlService(
-    process.env.SIGNED_URL_SECRET || "m1as-sEcReT-kEy"
   );
 
   // ---- Owner resolver (single source of truth) ----
@@ -137,7 +153,7 @@ async function startServer() {
 
   app.use("/assets/json",
     uploadRateLimit,
-    
+
     createJsonAssetRouter(jsonAdapter));
 
   // ---- Health check ----
