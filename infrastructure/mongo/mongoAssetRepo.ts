@@ -1,5 +1,5 @@
-import { AssetRepository } from "./contracts.js";
-import { AssetRecord } from "./types.js";
+import { AssetRepository } from "../../core/assets/contracts.js";
+import { AssetRecord } from "../../core/assets/types.js";
 import { AssetModel } from "./mongooseModels.js";
 
 export class MongoAssetRepo implements AssetRepository {

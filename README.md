@@ -88,6 +88,7 @@ Storage is abstracted behind a contract, allowing:
 * Metadata persistence to MongoDB
 * Deterministic storage paths
 * Decoupled storage and repository layers
+* Range streaming for video content hosting
 
 ---
 
@@ -113,15 +114,13 @@ These concerns are intentionally deferred to the **hardening phase**.
       ExpressAssetAdapter.ts    ← contract handling requests/responses for all framework. Handles multipart form submission (post) 
       jsonAssetRouter.ts        ← only maintains post for json submissions (post)
       jasonAssetAdapter.ts      ← Specifically handles json submissions (post)
-    /AssetHttpAdapter.ts        ← interface handling requests/responses for any framework.
+    AssetHttpAdapter.ts         ← interface handling requests/responses for any framework.
   /config
-    /m1asConfig.ts
+    m1asConfig.ts
   /core
     /assets
       AssetManager.ts
       contracts.ts
-      mongoAssetRepo.ts
-      mongooseModels.ts
       types.ts
     /logging
       createLogger.ts
@@ -132,8 +131,18 @@ These concerns are intentionally deferred to the **hardening phase**.
       rateLimiter.ts
     /security
       SignedUrlService.ts
+    /stream
+      StreamProvider.ts
     /utils
       normalizeDisplayName.ts
+      parseRange.ts
+      StreamAsset.ts
+  /infrastructure
+    /mongo
+      mongoAssetRepo.ts
+      mongooseModels.ts
+    /streams
+      GridFsStreamProvider.ts
   /logs
     m1as.log
   /storage
@@ -205,7 +214,12 @@ curl -v -X POST http://localhost:<PORT>/assets \
 - the **data** key of the JSON payload MUST be the **base64** value of the file for uploading via **jsonAssetRouter**
   - gitbash
      ```ruby
-      
+      {
+        "displayName": "test",
+	      "mimeType": "image/png",
+        "visibility": "public",
+	      "data": <FILE-BASE64-VALUE>
+      }
      ```
 - **To turn m1as rate limiter off** you must add **M1AS_RATE_LIMIT=off** to your **environment variables**. The m1as rate limiter defaults to ON, when not explicitly set to OFF. 
 ---
@@ -262,13 +276,14 @@ m1as-user-id
 	"data": "<base64-image>"
 }
 ```
-4. files can be retrieved by navigating to the following url
+4. files can be retrieved by retrieving the signed url for a public file. Navigating to the signed URL will render the upload in the browser.
 - **note** in order to retrieve files that are set to visibility=private, the request must be sent with the header m1as-user-id matching the ownerId. Sending requests with the header and ownerId discrepant will result in an access denied alert and the file will not be retrieved.
 ```ruby
-http://localhost:<PORT>/assets/<id>/file
+http://localhost:<PORT>/assets/<id>/signed
+http://localhost:<PORT>/assets/<id>/signed?<signature>
 ```
 5. metadata can be retrieved by navigating to the to following url
-- **note** metadata will be **redacted** when the request **m1as-user-id** header **is discrepant** from the file's **ownerId**. 
+- **note** metadata will be **redacted** when the request **m1as-user-id** header **is discrepant** from the file's **ownerId** AND the visibility is set to **Private**. 
 ```ruby
 http://localhost:<PORT>/assets/<id>
 ```
@@ -381,12 +396,9 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  |
 |  ├─ assets/
 │  |    ├─ assetManager.ts          ← storage + validation
-│  |    ├─ mongoAssetRepo.ts        ← MongoDB logic
 │  |    ├─ index.ts
-│  |    ├─ mongooseModels.ts
 │  |    ├─ contracts.ts
 │  |    └─ types.ts
-|  |
 │  |
 |  ├─ logging/
 |  |    └─ createLogger.ts          ← m1as logger.
@@ -398,11 +410,18 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  ├─ rateLimiter/
 |  |    └─ rateLimit.ts             ← rate limits factory.
 |  |
-|  ├─ security/
-|  |    └─ SignedUrlService.ts      ← m1as signed URL service.
+|  └─ security/
+|       └─ SignedUrlService.ts      ← m1as signed URL service.
 ├─ logs/
 |  └─ m1as.log                      ← m1asLogger log file location. For use when M1AS_LOGGER=file.
-│  
+|
+├─ infrastructure/
+|  ├─ mongo/
+│  |  ├─ mongoAssetRepo.ts
+│  |  └─ mongooseModel.ts
+|  └─ streams/
+│     └─ GridFsStreamProvider.ts   
+|
 ├─ server/
 │  ├─ m1asServer.ts
 |  └─ db/

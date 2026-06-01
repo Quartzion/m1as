@@ -8,7 +8,7 @@ import { AssetManager } from "../core/assets/AssetManager.js";
 import { createAssetRouter } from "../adapters/express/assetsRouter.js";
 import { createJsonAssetRouter } from "../adapters/express/jsonAssetRouter.js";
 import { JsonAssetAdapter } from "../adapters/express/jsonAssetAdapter.js";
-import { MongoAssetRepo } from "../core/assets/mongoAssetRepo.js";
+import { MongoAssetRepo } from "../infrastructure/mongo/mongoAssetRepo.js";
 import { MongoStorageAdapter } from "../storage/mongo/mongoStorageAdapter.js";
 import { createLogger } from "../core/logging/createLogger.js";
 import { SignedUrlService } from "../core/security/SignedUrlService.js";

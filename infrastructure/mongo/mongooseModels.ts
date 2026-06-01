@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { AssetRecord } from "./types.js";
+import { AssetRecord } from "../../core/assets/types.js";
 
 export interface AssetDoc extends AssetRecord, Document {}
 
