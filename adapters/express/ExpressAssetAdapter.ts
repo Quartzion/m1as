@@ -269,12 +269,6 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       pipe: (stream) => stream.pipe(res),
       end: () => res.end()
     });
-
-    // dev logging range streaming
-    // console.log(
-    //   "Incoming Range Header:",
-    //   req.headers.range
-    // );
   }
 
 

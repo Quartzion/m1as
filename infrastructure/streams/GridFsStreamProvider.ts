@@ -24,13 +24,6 @@ export class GridFsStreamProvider implements StreamProvider {
             const end = typeof range.end === "number"
                 ? Math.max(start, Math.min(range.end, file.length - 1))
                 : undefined;
-            // DEV LOGGING
-            // console.log("open download stream GridFS range:", {
-            //     start,
-            //     end,
-            //     fileLength: file.length,
-            //     range
-            // });
 
             if (typeof end === "number") {
                 stream = this.bucket.openDownloadStream(_id, {
@@ -44,11 +37,6 @@ export class GridFsStreamProvider implements StreamProvider {
                 });
             }
         } else {
-            // DEV LOGGING
-            // console.log("GridFS range:", {
-            //     fileLength: file.length,
-            //     range
-            // });
             stream = this.bucket.openDownloadStream(_id);
         }
 
