@@ -53,12 +53,12 @@ export function streamAsset(options: StreamAssetOptions) {
 
     // 206 Partial Content headers
     
-    // DEV LOGGING
-    console.log("206 response", {
-        start,
-        endByte,
-        contentLength
-    });
+    // DEV LOGGING range streaming
+    // console.log("206 response", {
+    //     start,
+    //     endByte,
+    //     contentLength
+    // });
 
     writeHead(206, {
         "Content-Range": `bytes ${start}-${endByte}/${fileSize}`,
