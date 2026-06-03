@@ -48,6 +48,13 @@ const deleteRateLimit = createRateLimit({
     req.ip
 });
 
+const streamRateLimit = createRateLimit({
+  windowMs: m1asConfig.rateLimit.windowMs,
+  max: m1asConfig.rateLimit.streamMax,
+  keyFn: (req) => req.ip
+});
+
+// Start Server
 async function startServer() {
   const logger = createLogger(m1asConfig.logger as "console" | "none" | "file" | "cloud", {
     filePath: m1asConfig.logFile,
@@ -141,7 +148,8 @@ async function startServer() {
       getOwnerId,
       uploadRateLimit,
       readRateLimit,
-      deleteRateLimit
+      deleteRateLimit,
+      streamRateLimit
     })
   );
 

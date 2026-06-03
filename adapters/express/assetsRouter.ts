@@ -11,6 +11,7 @@ export interface AssetRouterOptions {
   uploadRateLimit?: (req: any, res: any, next: any) => void;
   readRateLimit?: (req: any, res: any, next: any) => void;
   deleteRateLimit?: (req: any, res: any, next: any) => void;
+  streamRateLimit?: (req:any, res:any, next: any) => void;
 }
 
 export function createAssetRouter(options: AssetRouterOptions): Router {
@@ -36,7 +37,7 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
   router.get("/:id", options.readRateLimit || ((_, __, next) => next()), (req, res) => adapter.getMetadata(req, res));
   router.get("/:id/file", options.readRateLimit || ((_, __, next) => next()), (req, res) => adapter.getFile(req, res));
   // signed url routes
-  router.get("/:id/file/signed", options.readRateLimit || ((_, __, next) => next()), adapter.getFileSigned.bind(adapter));
+  router.get("/:id/file/signed", options.streamRateLimit || ((_, __, next) => next()), adapter.getFileSigned.bind(adapter));
   router.get("/:id/signed", options.readRateLimit || ((_, __, next) => next()), adapter.getSignedUrl.bind(adapter))
   router.delete("/:id", options.deleteRateLimit || ((_, __, next) => next()), (req, res) => adapter.delete(req, res));
 

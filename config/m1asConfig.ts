@@ -13,7 +13,8 @@ export const m1asConfig = {
     windowMs: Number(process.env.M1AS_RL_LOCKOUT_TIME) ?? 1_200_000, // default 20 min
     uploadMax: Number(process.env.M1AS_RL_UPLOAD_MAX) ?? 10, // default 10 uploads
     readMax: Number(process.env.M1AS_RL_READ_MAX) ?? 60, // default 60 reads
-    deleteMax: Number(process.env.M1AS_RL_DELETE_MAX) ?? 10, // default 10 delets
+    deleteMax: Number(process.env.M1AS_RL_DELETE_MAX) ?? 10, // default 10 deletes
+    streamMax: Number(process.env.M1AS_RL_STREAM_MAX) ?? 100, // default to 100 streams
     enabled: process.env.M1AS_RATE_LIMIT !== "off" // default to on. to turn off explicitly set to M1AS_RATE_LIMIT=off
   },
   signedUrl: {
