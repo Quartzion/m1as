@@ -256,7 +256,7 @@ export class AssetManager {
     return this.toPrivateMetadata(asset);
   }
 
-
+  // get file
   async getFileById(
     id: string,
     requesterOwnerId?: string
@@ -385,8 +385,16 @@ export class AssetManager {
     }
   }
 
+  // get public files
+  async getPublicAssets(): Promise<PublicAssetMetadata[]> {
+  const assets = await this.repository.findPublicAssets();
 
+  return assets.map(asset =>
+    this.toPublicMetadata(asset)
+  );
+}
 
+  // delete
   async delete(id: string): Promise<"deleted" | "not_found"> {
     const asset = await this.repository.findById(id);
 

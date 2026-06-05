@@ -103,7 +103,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     res.json({
       url: `/assets/${asset.id}/file/signed?expires=${expires}&sig=${sig}`,
-      expires
+      expires,
+      ttl
     });
   }
 
@@ -273,7 +274,16 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     });
   }
 
+  // -------------------
+  // GET PUBLIC FILES
+  // -------------------
+  async getPublicAssets(req: any, res: any): Promise<void> {
 
+  const assets =
+    await this.options.assetManager.getPublicAssets();
+
+  res.json(assets);
+}
 
   // --------------------
   // DELETE

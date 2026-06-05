@@ -29,6 +29,7 @@ export interface AssetRepository {
   create(asset: AssetRecord): Promise<AssetRecord>;
   findById(id: AssetId): Promise<AssetRecord | null>;
   deleteById(id: AssetId): Promise<void>;
+  findPublicAssets(): Promise<AssetRecord[]>;
 }
 
 export interface AssetCache {

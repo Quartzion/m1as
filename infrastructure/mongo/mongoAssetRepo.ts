@@ -20,6 +20,15 @@ export class MongoAssetRepo implements AssetRepository {
     return AssetModel.findOne({ id }).lean<AssetRecord>().exec();
   }
 
+    async findPublicAssets(): Promise<AssetRecord[]> {
+    return AssetModel.find({
+      visibility: "public"
+    })
+      .sort({ createdAt: -1 })
+      .lean<AssetRecord[]>()
+      .exec();
+  }
+
   async deleteById(id: string): Promise<void> {
    const result = await AssetModel.deleteOne({ id }).exec();
     if (result.deletedCount === 0) {

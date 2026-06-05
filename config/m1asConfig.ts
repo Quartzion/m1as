@@ -19,7 +19,7 @@ export const m1asConfig = {
   },
   signedUrl: {
     secret: process.env.M1AS_SIGNED_URL_SECRET!,
-    defaultTTL: 300
+    defaultTTL: Number(process.env.M1AS_SURL_TTL) || 300 // defaults to 300
   },
   streaming: {
     maxRangeWindowBytes: Number(process.env.M1AS_MAX_RANGE_WINDOW_BYTES) ?? 16 * 1024 * 1024 // defaults to 16 MB 

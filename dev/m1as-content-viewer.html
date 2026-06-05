@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>m1as media Browser</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        #assetList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .asset-card {
+            border: 1px solid #ccc;
+            padding: 12px;
+            width: 250px;
+            cursor: pointer;
+        }
+
+        .asset-card:hover {
+            background: #f5f5f5;
+        }
+
+        video {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>m1as Streaming Test</h1>
+
+    <button id="loadAssets">
+        Load Public Assets
+    </button>
+
+    <div id="ttlStatus"></div>
+    <div id="assetList"></div>
+    <div id="viewer"></div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const assetList = document.getElementById("assetList");
+        const viewer = document.getElementById("viewer");
+        const ttlStatus =
+            document.getElementById("ttlStatus");
+
+        let countdownInterval;
+
+        console.log("API_BASE =", API_BASE);
+
+        document
+            .getElementById("loadAssets")
+            .addEventListener("click", loadAssets);
+
+        async function loadAssets() {
+
+            assetList.innerHTML = "Loading...";
+
+            const response = await fetch(
+                `${API_BASE}/assets/public`
+            );
+
+            const assets = await response.json();
+
+            assetList.innerHTML = "";
+
+            assets.forEach(asset => {
+
+                const card = document.createElement("div");
+
+                card.className = "asset-card";
+
+                card.innerHTML = `
+            <strong>${asset.displayName}</strong>
+            <br>
+            ${asset.mimeType}
+            <br>
+            ${(asset.size / 1024 / 1024).toFixed(2)} MB
+        `;
+
+                card.addEventListener(
+                    "click",
+                    () => loadAsset(asset)
+                );
+
+                assetList.appendChild(card);
+            });
+        }
+
+        async function loadAsset(asset) {
+
+            const response = await fetch(
+                `${API_BASE}/assets/${asset.id}/signed`
+            );
+
+            const signed = await response.json();
+
+            startCountdown(
+                signed.expires,
+                signed.ttl
+            );
+            const signedUrl =
+                `${API_BASE}${signed.url}`;
+
+            viewer.innerHTML = "";
+
+            // Video
+            if (asset.mimeType.startsWith("video/")) {
+
+                const video =
+                    document.createElement("video");
+
+                video.controls = true;
+                video.width = 800;
+                video.preload = "metadata";
+                video.src = signedUrl;
+
+                viewer.appendChild(video);
+
+                return;
+            }
+
+            // Image
+            if (asset.mimeType.startsWith("image/")) {
+
+                const img =
+                    document.createElement("img");
+
+                img.src = signedUrl;
+                img.style.maxWidth = "800px";
+
+                viewer.appendChild(img);
+
+                return;
+            }
+
+            // Audio
+            if (asset.mimeType.startsWith("audio/")) {
+
+                const audio =
+                    document.createElement("audio");
+
+                audio.controls = true;
+                audio.src = signedUrl;
+
+                viewer.appendChild(audio);
+
+                return;
+            }
+
+            // PDF
+            if (asset.mimeType === "application/pdf") {
+
+                const iframe =
+                    document.createElement("iframe");
+
+                iframe.src = signedUrl;
+                iframe.width = "800";
+                iframe.height = "1000";
+
+                viewer.appendChild(iframe);
+
+                return;
+            }
+
+            // Fallback
+            const link =
+                document.createElement("a");
+
+            link.href = signedUrl;
+            link.textContent =
+                "Download Asset";
+
+            link.target = "_blank";
+
+            viewer.appendChild(link);
+        }
+
+        function startCountdown(expires, ttl) {
+
+            clearInterval(countdownInterval);
+
+            function update() {
+
+                const now =
+                    Math.floor(Date.now() / 1000);
+
+                const remaining =
+                    expires - now;
+
+                if (remaining <= 0) {
+
+                    ttlStatus.innerHTML = `
+                <strong>
+                    Signed URL Expired
+                </strong>
+                <br>
+                Click "Load Public Assets"
+                to refresh.
+            `;
+
+                    clearInterval(
+                        countdownInterval
+                    );
+
+                    return;
+                }
+
+                const minutes =
+                    Math.floor(remaining / 60);
+
+                const seconds =
+                    remaining % 60;
+
+                ttlStatus.innerHTML = `
+            TTL: ${ttl}s
+            <br>
+            Expires In:
+            ${minutes}:${String(seconds)
+                        .padStart(2, "0")}
+        `;
+            }
+
+            update();
+
+            countdownInterval =
+                setInterval(update, 1000);
+        }
+
+    </script>
+
+</body>
+
+</html>

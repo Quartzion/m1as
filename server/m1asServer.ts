@@ -77,7 +77,7 @@ async function startServer() {
       bucketName: "assets"
     });
 
-     streamProvider = new GridFsStreamProvider(bucket);
+    streamProvider = new GridFsStreamProvider(bucket);
 
     logger?.({
       level: "info",
@@ -214,6 +214,12 @@ async function startServer() {
       ...(isPublic && err.code ? { code: err.code } : {})
     });
   });
+
+  // m1as-content-viewer DEV TESTING
+  app.use(
+    "/dev",
+    express.static("dev")
+  );
 
 
   // ---- HTTP server ----

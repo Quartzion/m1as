@@ -34,12 +34,14 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
 
   // --- Routes delegate to adapter ---
   router.post("/", options.uploadRateLimit || ((_, __, next) => next()), (req, res) => adapter.upload(req, res));
+  router.get("/public", options.readRateLimit || ((_, __, next) => next()), adapter.getPublicAssets.bind(adapter));
   router.get("/:id", options.readRateLimit || ((_, __, next) => next()), (req, res) => adapter.getMetadata(req, res));
   router.get("/:id/file", options.readRateLimit || ((_, __, next) => next()), (req, res) => adapter.getFile(req, res));
   // signed url routes
   router.get("/:id/file/signed", options.streamRateLimit || ((_, __, next) => next()), adapter.getFileSigned.bind(adapter));
   router.get("/:id/signed", options.readRateLimit || ((_, __, next) => next()), adapter.getSignedUrl.bind(adapter))
   router.delete("/:id", options.deleteRateLimit || ((_, __, next) => next()), (req, res) => adapter.delete(req, res));
+
 
   return router;
 }
