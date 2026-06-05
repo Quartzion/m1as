@@ -265,6 +265,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       stream: result.stream,
       fileSize: result.size,
       mimeType: result.mimeType,
+      actualStart: result.actualStart,
+      actualEnd: result.actualEnd,
       writeHead: (status, headers) => res.writeHead(status, headers),
       pipe: (stream) => stream.pipe(res),
       end: () => res.end()

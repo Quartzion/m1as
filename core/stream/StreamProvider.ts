@@ -9,6 +9,8 @@ export interface StreamResult {
     stream: Readable;
     size: number;
     contentType?: string;
+    actualStart?: number;
+    actualEnd?: number;
 }
 
 export interface StreamProvider {

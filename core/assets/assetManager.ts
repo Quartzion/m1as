@@ -349,7 +349,7 @@ export class AssetManager {
     requesterOwnerId: string,
     range?: StreamRange
   ): Promise<
-    | { status: "ok"; stream: Readable, size: number, mimeType: string, displayName: string }
+    | { status: "ok"; stream: Readable, size: number, mimeType: string, displayName: string, actualStart?: number, actualEnd?: number }
     | { status: "not_found" }
     | { status: "forbidden" }
   > {
@@ -373,7 +373,9 @@ export class AssetManager {
         stream: result.stream,
         size: result.size,
         mimeType: result.contentType ?? asset.mimeType,
-        displayName: asset.displayName
+        displayName: asset.displayName,
+        actualStart: result.actualStart,
+        actualEnd: result.actualEnd
       };
     } catch (err: any) {
       if (err.code === "ENOENT" || err.message?.includes("fileNotFound")) {

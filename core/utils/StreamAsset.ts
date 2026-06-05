@@ -6,13 +6,25 @@ export interface StreamAssetOptions {
     stream: Readable;
     fileSize: number;
     mimeType: string;
+    actualStart?: number;
+    actualEnd?: number;
     writeHead: (status: number, headers: Record<string, string | number>) => void;
     pipe: (stream: Readable) => void;
     end: () => void;
 }
 
 export function streamAsset(options: StreamAssetOptions) {
-    const { headers, stream, fileSize, mimeType, writeHead, pipe, end } = options;
+    const { 
+        headers,
+        stream,
+        fileSize,
+        mimeType,
+        actualStart,
+        actualEnd,
+        writeHead,
+        pipe,
+        end 
+    } = options;
     const rangeHeader = headers.range;
 
     // No Range header → full file
@@ -49,11 +61,26 @@ export function streamAsset(options: StreamAssetOptions) {
         return;
     }
 
-    const contentLength = endByte - start + 1;
+    const responseStart = actualStart ?? start;
+    const responseEnd = actualEnd ?? endByte;
+
+    const contentLength = responseEnd - responseStart + 1;
+
+    // DEV LOGGING
+    console.log({
+        rangeHeader,
+        start,
+        endByte,
+        responseEnd,
+        responseStart,
+        contentLength
+    });
+
+    
 
     // 206 Partial Content headers
     writeHead(206, {
-        "Content-Range": `bytes ${start}-${endByte}/${fileSize}`,
+        "Content-Range": `bytes ${responseStart}-${responseEnd}/${fileSize}`,
         "Accept-Ranges": "bytes",
         "Content-Length": contentLength,
         "Content-Type": mimeType,
