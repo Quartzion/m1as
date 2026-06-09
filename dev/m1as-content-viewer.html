@@ -7,6 +7,7 @@
 
     <title>m1as media Browser</title>
 
+    <!-- styling -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -43,6 +44,9 @@
 
     <button id="loadAssets">
         Load Public Assets
+    </button>
+    <button id="uploadAsset">
+        Upload file
     </button>
 
     <div id="ttlStatus"></div>
@@ -88,6 +92,16 @@
             ${asset.mimeType}
             <br>
             ${(asset.size / 1024 / 1024).toFixed(2)} MB
+            <br>
+            <div id="control-panel">
+            <button id="deleteFile-${asset.id}">
+                Delete File
+            </button>
+            <br>
+            <button id="updateFileName-${asset.id}">
+                update file name
+            </button>
+            </div>
         `;
 
                 card.addEventListener(

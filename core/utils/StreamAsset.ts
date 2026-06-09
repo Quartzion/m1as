@@ -63,20 +63,7 @@ export function streamAsset(options: StreamAssetOptions) {
 
     const responseStart = actualStart ?? start;
     const responseEnd = actualEnd ?? endByte;
-
     const contentLength = responseEnd - responseStart + 1;
-
-    // DEV LOGGING
-    console.log({
-        rangeHeader,
-        start,
-        endByte,
-        responseEnd,
-        responseStart,
-        contentLength
-    });
-
-    
 
     // 206 Partial Content headers
     writeHead(206, {

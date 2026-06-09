@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "m1asTest": "node dist/server/m1asServer.js",
-    "m1asStream": "npx serve"
+    "m1asTest": "node dist/server/m1asServer.js"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

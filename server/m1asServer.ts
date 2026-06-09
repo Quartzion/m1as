@@ -216,14 +216,18 @@ async function startServer() {
   });
 
   // m1as-content-viewer DEV TESTING
-  app.use(
-    "/dev",
-    express.static("dev")
-  );
-
+  if (m1asConfig.devUrlTest) {
+    app.use(
+      "/dev",
+      express.static("dev")
+    );
+  }
 
   // ---- HTTP server ----
   const server = http.createServer(app);
+
+  // track sockets for clean shutdown
+  const sockets = new Set<any>();
 
   isReady = true;
 
@@ -241,8 +245,38 @@ async function startServer() {
     });
   });
 
+  // track all incoming TCP connections for shutdown cleanup
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+
+    socket.on("close", () => {
+      sockets.delete(socket);
+    });
+  });
+
   // ---- Graceful shutdown ----
-  const shutdown = async (signal: string) => {
+  const closeServer = () =>
+    new Promise<void>((resolve) => {
+      server.close(() => {
+        resolve();
+      });
+    });
+
+  let shuttingDown = false;
+
+  server.on("request", (req, res) => {
+  if (shuttingDown) {
+    res.setHeader("Connection", "close");
+    res.statusCode = 503;
+    res.end("Server shutting down");
+  }
+});
+
+  async function shutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    isReady = false;
+    // shutdown starts
     logger?.({
       level: "info",
       msg: "Shutdown initiated",
@@ -250,27 +284,39 @@ async function startServer() {
     });
 
     try {
-      await mongoose.disconnect();
-      logger?.({
-        level: "info",
-        msg: "MongoDB disconnected"
-      });
-    } catch (err) {
-      logger?.({
-        level: "error",
-        msg: "Error during MongoDB shutdown",
-        err
-      });
-    }
+      // 1. Stop accepting new connections 
+      await closeServer();
 
-    server.close(() => {
       logger?.({
         level: "info",
         msg: "HTTP server closed"
       });
+
+      // 2. destroy lingering sockets
+      for (const socket of sockets) {
+        try {
+          socket.destroy();
+
+          logger?.({
+          level: "info",
+          msg: `destroying sockets: ${sockets.size}`
+        })
+        } catch { };
+      }
+
+      sockets.clear();
+      
+      // 3. close db connections 
+      await mongoose.disconnect();
+
+      logger?.({
+        level: "info",
+        msg: "MongoDB disconnected"
+      });
+    } finally {
       process.exit(0);
-    });
-  };
+    }
+  }
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
@@ -285,3 +331,4 @@ console.log(`POST multipart forms (best for larger files) to http://localhost:${
 console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
 console.log(`Rediness check available at http://localhost:${PORT}/ready`);
 console.log(`Health check available at http://localhost:${PORT}/health`);
+console.log(`m1as-content-viewer ${m1asConfig.devUrlTest.toString()}`)

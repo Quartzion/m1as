@@ -6,16 +6,15 @@ import { m1asConfig } from "../../config/m1asConfig.js";
 export class GridFsStreamProvider implements StreamProvider {
     constructor(private bucket: GridFSBucket) { }
 
+    // open stream
     async openStream(
         storagePath: string,
         range?: StreamRange
     ): Promise<StreamResult> {
 
         const _id = new ObjectId(storagePath);
-
         const file = await this.bucket.find({ _id }).next();
         
-
         if (!file) {
             throw new PublicError(
                 "Asset not found",
@@ -46,6 +45,7 @@ export class GridFsStreamProvider implements StreamProvider {
                     )
                     : file.length - 1;
 
+            // range streaming optimization
             const maxRangeWindowBytes =
                 m1asConfig.streaming.maxRangeWindowBytes;
 
@@ -56,14 +56,7 @@ export class GridFsStreamProvider implements StreamProvider {
 
             actualStart = start;
             actualEnd = effectiveEnd;
-
-            console.log("Range Window", {
-                start,
-                requestedEnd,
-                effectiveEnd,
-                maxRangeWindowBytes
-            });
-
+            
             stream = this.bucket.openDownloadStream(_id, {
                 start,
                 end: file.length
