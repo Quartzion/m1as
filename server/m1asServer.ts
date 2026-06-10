@@ -22,6 +22,8 @@ const isProd = NODE_ENV === "production";
 
 const PORT = m1asConfig.m1asServerPort;
 let isReady = false;
+let shuttingDown = false;
+let activeRequests = 0;
 
 // ---- rate limiter ----
 const uploadRateLimit = createRateLimit({
@@ -56,6 +58,31 @@ const streamRateLimit = createRateLimit({
 
 // Start Server
 async function startServer() {
+  const randomNumber =
+  Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, "0");
+
+  const m1asSessionFlavorList = [
+  "fish",
+  "apple",
+  "square",
+  "rhombus",
+  "unicorn",
+  "blueMoon",
+  "raptor"
+] as const;
+
+const randomFlavor =
+  m1asSessionFlavorList[
+    Math.floor(
+      Math.random() * m1asSessionFlavorList.length
+    )
+  ];
+
+  const m1asDeploymentSessionId =
+  `${m1asConfig.m1asDeploymentSessionSecret}-${randomFlavor}-${randomNumber}`;
+
   const logger = createLogger(m1asConfig.logger as "console" | "none" | "file" | "cloud", {
     filePath: m1asConfig.logFile,
     level: m1asConfig.logLevel as any
@@ -86,7 +113,7 @@ async function startServer() {
 
     logger?.({
       level: "info",
-      msg: "server environment",
+      msg: `server environment  - deployment: ${m1asDeploymentSessionId}`,
       NODE_ENV
     });
 
@@ -104,6 +131,32 @@ async function startServer() {
   app.disable("x-powered-by");
 
   app.use(express.json({ limit: "3mb" }));
+
+  app.use((req, res, next) => {
+    if (shuttingDown) {
+      res.setHeader("Connection", "close");
+
+      return res.status(503).json({
+        error: "server shutting down"
+      });
+    }
+
+    activeRequests++;
+
+
+    let completed = false;
+
+    const decrement = () => {
+      if (completed) return;
+      completed = true;
+
+      activeRequests = Math.max(0, activeRequests - 1);
+
+    };
+    res.on("finish", decrement);
+    res.on("close", decrement);
+    next();
+  });
 
   // ---- Core services ----
   const storage = new MongoStorageAdapter();
@@ -218,7 +271,7 @@ async function startServer() {
   // m1as-content-viewer DEV TESTING
   if (m1asConfig.devUrlTest) {
     app.use(
-      "/dev",
+      `/dev/${m1asDeploymentSessionId}`,
       express.static("dev")
     );
   }
@@ -262,56 +315,87 @@ async function startServer() {
       });
     });
 
-  let shuttingDown = false;
+  async function waitForDrain(
+    timeoutMs: number,
+    pollMs = 100
+  ): Promise<void> {
+    const start = Date.now();
 
-  server.on("request", (req, res) => {
-  if (shuttingDown) {
-    res.setHeader("Connection", "close");
-    res.statusCode = 503;
-    res.end("Server shutting down");
+    while (
+      activeRequests > 0 &&
+      Date.now() - start < timeoutMs
+    ) {
+      await new Promise(resolve =>
+        setTimeout(resolve, pollMs)
+      );
+    }
   }
-});
 
   async function shutdown(signal: string) {
     if (shuttingDown) return;
+
     shuttingDown = true;
     isReady = false;
-    // shutdown starts
+
     logger?.({
       level: "info",
-      msg: "Shutdown initiated",
+      msg: `Shutdown initiated - deployment: ${m1asDeploymentSessionId}`,
       signal
     });
 
     try {
-      // 1. Stop accepting new connections 
+      logger?.({
+        level: "info",
+        msg: `Calling server.close - deployment: ${m1asDeploymentSessionId}`
+      });
+
       await closeServer();
 
       logger?.({
         level: "info",
-        msg: "HTTP server closed"
+        msg: `server.close resolved  - deployment: ${m1asDeploymentSessionId}`
       });
 
-      // 2. destroy lingering sockets
+      logger?.({
+        level: "info",
+        msg: `Waiting for active requests - ${m1asDeploymentSessionId}`,
+        activeRequests
+      });
+
+      await waitForDrain(10000);
+
+      logger?.({
+        level: "info",
+        msg: `Drain complete - ${m1asDeploymentSessionId}`,
+        activeRequests
+      });
+
+      logger?.({
+        level: "info",
+        msg: `Destroying lingering sockets - ${m1asDeploymentSessionId}`,
+        socketCount: sockets.size
+      });
+
       for (const socket of sockets) {
         try {
           socket.destroy();
-
-          logger?.({
-          level: "info",
-          msg: `destroying sockets: ${sockets.size}`
-        })
-        } catch { };
+        } catch { }
       }
 
       sockets.clear();
-      
-      // 3. close db connections 
+
       await mongoose.disconnect();
 
       logger?.({
         level: "info",
-        msg: "MongoDB disconnected"
+        msg: `MongoDB disconnected - deployment: ${m1asDeploymentSessionId}`
+      });
+
+    } catch (err) {
+      logger?.({
+        level: "error",
+        msg: `Shutdown error - deployment: ${m1asDeploymentSessionId}`,
+        err
       });
     } finally {
       process.exit(0);
@@ -331,4 +415,4 @@ console.log(`POST multipart forms (best for larger files) to http://localhost:${
 console.log(`POST JSON for smaller files to http://localhost:${PORT}/assets/json`);
 console.log(`Rediness check available at http://localhost:${PORT}/ready`);
 console.log(`Health check available at http://localhost:${PORT}/health`);
-console.log(`m1as-content-viewer ${m1asConfig.devUrlTest.toString()}`)
+console.log(`m1as-content-viewer has been deployed as: ${m1asConfig.devUrlTest.toString()}`)

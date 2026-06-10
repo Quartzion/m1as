@@ -24,6 +24,7 @@ export const m1asConfig = {
   streaming: {
     maxRangeWindowBytes: Number(process.env.M1AS_MAX_RANGE_WINDOW_BYTES) ?? 16 * 1024 * 1024 // defaults to 16 MB 
   },
-  devUrlTest: process.env.M1AS_DEV_URL_ACTIVE?.toLowerCase() === "true"
+  devUrlTest: process.env.M1AS_DEV_URL_ACTIVE?.toLowerCase() === "true",
+  m1asDeploymentSessionSecret: process.env.M1AS_DEPLOY_SESSION_SECRET || 'session_secret_not_configured'
 };
 
