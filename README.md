@@ -182,25 +182,30 @@ npm run m1asTest
      - **EpressAssetRouter** upload (post) uses multipart forms intentionally to improve support for larger file uploads.
      - **jsonAssetRouter** upoad (post) sends JSON payloads intentionally to improve support for smaller file uploads and MERN integration.  
 - **m1asConfig** is used for setting environment variables for customizability. m1asConfig maintains the following values:
-     - maxFileSizeBytes           ← sets the max upload file size for the multipart form post. Default / fallback - 10 MB.
-     - allowedMimeTypes           ← sets the list of accepted file types. Default / fallback "image/png","image/jpeg","image/webp"
-     - maxJsonUploadBytes         ← sets the max upload file size for the JSON body post. Default / fallback - 2 MB.
-     - multiPartAllowedFields     ← set to "visibility" for centrally enforced visibility invariant support. 
-     - logger                     ← sets the m1asLogger logging location. Default / fallback - console. values: console | file | cloud | none.
-     - logFile                    ← sets the m1asLogger log file location. For use when logger=file. Default - ./logs/m1as.log
-     - logLevel                   ← sets the m1asLogger verbosity. Default / fallback - error. Values: error | warn | info | debug | none
-     - m1asServerPort             ← sets the server port m1as runs on.
-     - rateLimit: {               ← rate limiter settings.
-       - windowMs                 ← sets the lock out period length when limit is reached. Default / fallback - 20 min.
-       - uploadMax                ← sets upload max value. Default / fallback - 10 uploads.
-       - readMax                  ← sets the get max value. Default / fallback - 60 retrieves.
-       - deleteMax                ← sets the delete max value. Default / fallback - 10 deletes.
-       - enabled                  ← turns on / off the rate limiter. Default / fall back to TRUE (on).
+     - maxFileSizeBytes       ← sets the max upload file size for the multipart form post. Default / fallback - 10 MB.
+     - allowedMimeTypes       ← sets the list of accepted file types. Default / fallback "image/png","image/jpeg","image/webp"
+     - maxJsonUploadBytes     ← sets the max upload file size for the JSON body post. Default / fallback - 2 MB.
+     - multiPartAllowedFields ← set to "visibility" for centrally enforced visibility invariant support. 
+     - logger                 ← sets the m1asLogger logging location. Default / fallback - console. values: console | file | cloud | none.
+     - logFile                ← sets the m1asLogger log file location. For use when logger=file. Default - ./logs/m1as.log
+     - logLevel               ← sets the m1asLogger verbosity. Default / fallback - error. Values: error | warn | info | debug | none
+     - m1asServerPort         ← sets the server port m1as runs on.
+     - rateLimit: {           ← rate limiter settings.
+       - windowMs             ← sets the lock out period length when limit is reached. Default / fallback - 20 min.
+       - uploadMax            ← sets upload max value. Default / fallback - 10 uploads.
+       - readMax              ← sets the get max value. Default / fallback - 60 retrieves.
+       - deleteMax            ← sets the delete max value. Default / fallback - 10 deletes.
+       - enabled              ← turns on / off the rate limiter. Default / fall back to TRUE (on).
       }
-    -   signedUrl: {
-       - secret                  ← M1AS_SIGNED_URL_SECRET
-       - defaultTTL              ← Default / fall back to 300.
-  }
+     - signedUrl: {
+       - secret               ← M1AS_SIGNED_URL_SECRET
+       - defaultTTL           ← Default / fall back to 300.
+      }
+     - streaming: {
+       - maxRangeWindowBytes: ← sets the maxRangeWindowBytes for range streamin, defaults to 16 MB. 
+      },
+     - devUrlTest             ← enables the /dev url to verify deployment. This value will default to false, disabling the dev url.
+     - m1asDeploymentSessionSecret ← sets the deployment id for logging.
 - **visibility defaults to private** 
      - when a file is uploaded and the visibility is not set to public via the headers (for multipart form submissions) or in the JSON payload, the visibility will default to private. 
      - In order to set the visibility to public via the API, use the jsonAssetRouter with the JSON body demonstrated later below.
@@ -293,22 +298,29 @@ curl -v -X DELETE http://localhost:<PORT>/assets/<id> \
 ```
 7. m1as configuration settings should be handled in the .env file. The m1as demo configuration is the following:
 ```ruby
-M1AS_MAX_FILE_SIZE_BYTES=10485760
+M1AS_MAX_FILE_SIZE_BYTES=302709892
 M1AS_MAX_JSON_UPLOAD_BYTES=2097152
-M1AS_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp,image/gif
+M1AS_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp,image/gif,video/mp4
 M1AS_LOGGER=console
 # values: console | file | cloud | none
 M1AS_LOG_FILE=./logs/m1as.log
 M1AS_LOG_LEVEL=debug
 # values: error | warn | info | debug | none
 M1AS_SERVER_PORT=1311
-M1AS_RL_LOCKOUT_TIME=10000
+M1AS_RL_LOCKOUT_TIME=60000
 M1AS_RL_UPLOAD_MAX=2
-M1AS_RL_READ_MAX=3
+M1AS_RL_READ_MAX=60
 M1AS_RL_DELETE_MAX=2
+M1AS_RL_STREAM_MAX=100
 M1AS_RATE_LIMIT=on
+M1AS_MAX_RANGE_WINDOW_BYTES=16777216
 #vales: on | off
+SIGNED_URL_SECRET=peteIsSoSmartAndGoodLooking!shhhh!;/
+M1AS_SURL_TTL=300
+M1AS_DEV_URL_ACTIVE=true
+M1AS_DEPLOY_SESSION_SECRET=welcomeToM1AS
 ```
+1. The m1as deployment can be tested / evaluated by navigating to the /dev url. The url is /dev/<m1asDeploymentSessionId>. The m1asDeploymentSessionId is generated when the m1as server is running and can be found in the server logs. The deployment m1as-content-viewer.html will retreive all public records for stream test evaluation. 
 ---
 ## Data Structure
 ```ruby
@@ -414,6 +426,9 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |       └─ SignedUrlService.ts      ← m1as signed URL service.
 ├─ logs/
 |  └─ m1as.log                      ← m1asLogger log file location. For use when M1AS_LOGGER=file.
+|
+├─ dev/
+|  └─ m1as-content-viewer.html      ← provides a deployment test access for deployment verification.
 |
 ├─ infrastructure/
 |  ├─ mongo/

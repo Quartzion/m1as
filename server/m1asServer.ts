@@ -113,9 +113,14 @@ const randomFlavor =
 
     logger?.({
       level: "info",
-      msg: `server environment  - deployment: ${m1asDeploymentSessionId}`,
+      msg: `server environment`,
       NODE_ENV
     });
+
+    logger?.({
+      level: "info",
+      msg: `m1asDeploymentSessionId: ${m1asDeploymentSessionId}`
+    })
 
   } catch (err) {
     logger?.({
