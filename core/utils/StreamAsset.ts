@@ -1,11 +1,13 @@
 import { IncomingHttpHeaders } from "http";
 import { Readable } from "stream";
+import { getBrowserContentPolicy } from "../security/BrowserContentPolicy.js";
 
 export interface StreamAssetOptions {
     headers: IncomingHttpHeaders;
     stream: Readable;
     fileSize: number;
     mimeType: string;
+    contentDisposition?: string;
     actualStart?: number;
     actualEnd?: number;
     writeHead: (status: number, headers: Record<string, string | number>) => void;
@@ -14,7 +16,7 @@ export interface StreamAssetOptions {
 }
 
 export function streamAsset(options: StreamAssetOptions) {
-    const { 
+    const {
         headers,
         stream,
         fileSize,
@@ -23,17 +25,24 @@ export function streamAsset(options: StreamAssetOptions) {
         actualEnd,
         writeHead,
         pipe,
-        end 
+        end
     } = options;
-    const rangeHeader = headers.range;
 
+    // range headder for streaming
+    const rangeHeader = headers.range;
+    
+    // enforce browser content policy
+    const browserContentPolicy = getBrowserContentPolicy(mimeType);
+    const dispositionHeader = `${browserContentPolicy.disposition}; filename="attachment"`;
+   
     // No Range header → full file
     if (!rangeHeader) {
         writeHead(200, {
             "Content-Length": fileSize,
             "Content-Type": mimeType,
-            "X-Content-Type-Options": "nosniff",
             "Accept-Ranges": "bytes",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": dispositionHeader
         });
         pipe(stream);
         return;
@@ -73,6 +82,7 @@ export function streamAsset(options: StreamAssetOptions) {
         "Content-Length": contentLength,
         "Content-Type": mimeType,
         "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": dispositionHeader
     });
 
     // Pipe the already ranged stream

@@ -423,6 +423,7 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  |    └─ rateLimit.ts             ← rate limits factory.
 |  |
 |  ├─ security/
+|  |    ├─ browserContentPolicy.ts  ← m1as browser content policy for safe streaming.
 |  |    └─ SignedUrlService.ts      ← m1as signed URL service.
 |  |
 |  ├─ stream/

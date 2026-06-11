@@ -10,6 +10,7 @@ import { PublicError } from "../../core/middleware/publicErrorHandler.js";
 import { streamAsset } from "../../core/utils/StreamAsset.js";
 import { SignedUrlService } from "../../core/security/SignedUrlService.js";
 import { parseRangeHeader } from "../../core/utils/parseRange.js";
+import { getBrowserContentPolicy } from "../../core/security/BrowserContentPolicy.js";
 import { StreamRange } from "../../core/stream/StreamProvider.js";
 
 const pipelineAsync = promisify(pipeline);
@@ -205,11 +206,14 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       throw new PublicError("Access_denied", 403, "ACCESS_DENIED");
     }
 
+    // forced download file types
+    const browswerContentPolicy = getBrowserContentPolicy(result.file.mimeType)
+
     res.setHeader("Content-Type", result.file.mimeType);
     res.setHeader("X-Content-Type-Options", "nosniff")
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${encodeURIComponent(result.file.displayName)}"`
+      `${browswerContentPolicy.disposition ? "attachment" : "inline"}; filename="${encodeURIComponent(result.file.displayName)}"`
     );
 
     const bufferStream = new PassThrough();
@@ -261,12 +265,17 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     if (result.status === "not_found") throw new PublicError("Not_Found", 404, "NOT_FOUND");
     if (result.status === "forbidden") throw new PublicError("Access_Denied", 403, "ACCESS_DENIED");
 
+    // force download
+    const browswerContentPolicy = getBrowserContentPolicy(result.mimeType);
+    const contentDisposition = browswerContentPolicy.disposition;
+
     // Stream with proper headers
     await streamAsset({
       headers: req.headers,
       stream: result.stream,
       fileSize: result.size,
       mimeType: result.mimeType,
+      contentDisposition,
       actualStart: result.actualStart,
       actualEnd: result.actualEnd,
       writeHead: (status, headers) => res.writeHead(status, headers),
