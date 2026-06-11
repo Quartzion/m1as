@@ -422,8 +422,16 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 |  ├─ rateLimiter/
 |  |    └─ rateLimit.ts             ← rate limits factory.
 |  |
-|  └─ security/
-|       └─ SignedUrlService.ts      ← m1as signed URL service.
+|  ├─ security/
+|  |    └─ SignedUrlService.ts      ← m1as signed URL service.
+|  |
+|  ├─ stream/
+|  |     └─ StreamProvider.ts       ← m1as stream provider for video streaming.
+|  |
+|  └─ utils/
+|       ├─ normalizeDisplayName.ts  ← m1as display name normailzation for asset storage safety.
+|       ├─ parseRange.ts            ← m1as stream range parsing utility for video streaming.
+|       └─ StreamAsset.ts           ← m1as stream asset utility for video streaming.
 ├─ logs/
 |  └─ m1as.log                      ← m1asLogger log file location. For use when M1AS_LOGGER=file.
 |
@@ -435,10 +443,10 @@ This project is part of Quartzion’s broader mission to build ethical, scalable
 │  |  ├─ mongoAssetRepo.ts
 │  |  └─ mongooseModel.ts
 |  └─ streams/
-│     └─ GridFsStreamProvider.ts   
+│     └─ GridFsStreamProvider.ts    ← GridFS stream provider for video streaming.
 |
 ├─ server/
-│  ├─ m1asServer.ts
+│  ├─ m1asServer.ts                 ← Express server for hosting m1as content.
 |  └─ db/
 │     └─ mongoClient.ts  
 │
