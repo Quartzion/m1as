@@ -32,6 +32,7 @@ export function streamAsset(options: StreamAssetOptions) {
         writeHead(200, {
             "Content-Length": fileSize,
             "Content-Type": mimeType,
+            "X-Content-Type-Options": "nosniff",
             "Accept-Ranges": "bytes",
         });
         pipe(stream);
@@ -71,6 +72,7 @@ export function streamAsset(options: StreamAssetOptions) {
         "Accept-Ranges": "bytes",
         "Content-Length": contentLength,
         "Content-Type": mimeType,
+        "X-Content-Type-Options": "nosniff",
     });
 
     // Pipe the already ranged stream

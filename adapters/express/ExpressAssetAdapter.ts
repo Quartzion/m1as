@@ -206,6 +206,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     }
 
     res.setHeader("Content-Type", result.file.mimeType);
+    res.setHeader("X-Content-Type-Options", "nosniff")
     res.setHeader(
       "Content-Disposition",
       `inline; filename="${encodeURIComponent(result.file.displayName)}"`
