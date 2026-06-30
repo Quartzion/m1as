@@ -1,11 +1,13 @@
 import { IncomingHttpHeaders } from "http";
 import { Readable } from "stream";
+import { BrowserContentPolicy } from "../security/BrowserContentPolicy.js";
 
 export interface StreamAssetOptions {
     headers: IncomingHttpHeaders;
     stream: Readable;
     fileSize: number;
     mimeType: string;
+    policy: BrowserContentPolicy;
     actualStart?: number;
     actualEnd?: number;
     writeHead: (status: number, headers: Record<string, string | number>) => void;
@@ -19,6 +21,7 @@ export function streamAsset(options: StreamAssetOptions) {
         stream,
         fileSize,
         mimeType,
+        policy,
         actualStart,
         actualEnd,
         writeHead,
@@ -32,8 +35,8 @@ export function streamAsset(options: StreamAssetOptions) {
         writeHead(200, {
             "Content-Length": fileSize,
             "Content-Type": mimeType,
-            "X-Content-Type-Options": "nosniff",
             "Accept-Ranges": "bytes",
+            ...policy.headers
         });
         pipe(stream);
         return;
@@ -72,7 +75,7 @@ export function streamAsset(options: StreamAssetOptions) {
         "Accept-Ranges": "bytes",
         "Content-Length": contentLength,
         "Content-Type": mimeType,
-        "X-Content-Type-Options": "nosniff",
+        ...policy.headers
     });
 
     // Pipe the already ranged stream
