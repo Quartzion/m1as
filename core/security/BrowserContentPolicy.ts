@@ -31,7 +31,7 @@ const SANDBOX_HEADERS = Object.freeze({
 const INLINE_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
     previewMode: "inline",
-    supportsPreview: true,
+    supportsPreview: false,
     headers: NOSNIFF_HEADERS
 });
 

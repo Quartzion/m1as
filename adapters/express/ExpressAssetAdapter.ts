@@ -12,6 +12,7 @@ import { SignedUrlService } from "../../core/security/SignedUrlService.js";
 import { parseRangeHeader } from "../../core/utils/parseRange.js";
 import { StreamRange } from "../../core/stream/StreamProvider.js";
 import { getBrowserContentPolicy } from "../../core/security/BrowserContentPolicy.js";
+import { renderPreview } from "../../core/utils/PreviewRender.js"
 
 const pipelineAsync = promisify(pipeline);
 
@@ -186,6 +187,67 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     res.json(asset);
   }
+  
+  // --------------------
+  // GET PREVIEW
+  // -------------------- 
+  async getPreview(req: any, res: any): Promise<void> {
+    
+    const { id } = req.params;
+
+    const asset = await this.options.assetManager.get(id);
+
+    if (!asset) {
+      throw new PublicError("Not_found", 404, "NOT_FOUND");
+    }
+
+    // enforce safe preview policy when needed
+    const policy = getBrowserContentPolicy(asset.mimeType);
+
+    if (!policy.supportsPreview) {
+      throw new PublicError(
+        "Preview_not_supported",
+        400,
+        "PREVIEW_NOT_SUPPORTED"
+      );
+    }
+
+    // load file
+    const result = await this.options.assetManager.getFileById(
+      id,
+      this.ownerId(req)
+    );
+
+    if (result.status === "not_found") {
+      throw new PublicError("Not_found", 404, "FILE_NOT_FOUND");
+    }
+
+    if (result.status === "forbidden") {
+      throw new PublicError("Access_denied", 403, "ACCESS_DENIED");
+    }
+
+    // render preview
+    const rendered = renderPreview(
+      {
+        mimeType: result.file.mimeType,
+        buffer: result.file.buffer,
+        displayName: result.file.displayName
+      },
+      policy
+    );
+
+    if (rendered.status !== "ok") {
+      throw new PublicError(
+        "Not_previewable",
+        400,
+        "NOT_PREVIEWABLE"
+      );
+    }
+    
+    res.setHeader("Content-Type", "text/html");
+    res.send(rendered.html);
+  
+  }
 
   // --------------------
   // GET FILE
@@ -215,7 +277,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     res.setHeader(
       "Content-Disposition",
-      `${policy.disposition}; fileName="${encodeURIComponent(result.file.displayName)}"`
+      `${policy.disposition}; filename="${encodeURIComponent(result.file.displayName)}"`
     )
 
     const bufferStream = new PassThrough();
