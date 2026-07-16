@@ -12,6 +12,8 @@ import { SignedUrlService } from "../../core/security/SignedUrlService.js";
 import { parseRangeHeader } from "../../core/utils/parseRange.js";
 import { StreamRange } from "../../core/stream/StreamProvider.js";
 import { getBrowserContentPolicy } from "../../core/security/BrowserContentPolicy.js";
+import { BrowserContentRegistry } from "../../core/browser/BrowserContentRegistry.js";
+import { DefaultBrowserContentProcessor } from "../../core/browser/DefaultBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js"
 
 const pipelineAsync = promisify(pipeline);
@@ -20,16 +22,26 @@ const pipelineAsync = promisify(pipeline);
 export class ExpressAssetAdapter implements AssetHttpAdapter {
   private uploadMiddleware;
 
+  private readonly browserRegistry: BrowserContentRegistry;
 
   constructor(
 
-    private options: {
-
+    private readonly options: {
       signedUrlService: SignedUrlService;
       assetManager: AssetManager;
+      browserRegistry?: BrowserContentRegistry;
       getOwnerId?: (req: any) => string | undefined;
     }
+
   ) {
+
+    // itialize browser registry 
+    this.browserRegistry =
+      options.browserRegistry ??
+      new BrowserContentRegistry(
+        [],
+        new DefaultBrowserContentProcessor()
+      );
 
     // runtime safety guard (after options is assigned)
     if (
@@ -187,30 +199,13 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     res.json(asset);
   }
-  
+
   // --------------------
   // GET PREVIEW
   // -------------------- 
   async getPreview(req: any, res: any): Promise<void> {
-    
+
     const { id } = req.params;
-
-    const asset = await this.options.assetManager.get(id);
-
-    if (!asset) {
-      throw new PublicError("Not_found", 404, "NOT_FOUND");
-    }
-
-    // enforce safe preview policy when needed
-    const policy = getBrowserContentPolicy(asset.mimeType);
-
-    if (!policy.supportsPreview) {
-      throw new PublicError(
-        "Preview_not_supported",
-        400,
-        "PREVIEW_NOT_SUPPORTED"
-      );
-    }
 
     // load file
     const result = await this.options.assetManager.getFileById(
@@ -226,15 +221,42 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       throw new PublicError("Access_denied", 403, "ACCESS_DENIED");
     }
 
+    const policy = getBrowserContentPolicy(result.file.mimeType);
+
+    if (!policy.supportsPreview) {
+      throw new PublicError(
+        "Preview_not_supported",
+        400,
+        "PREVIEW_NOT_SUPPORTED"
+      );
+    }
+
+
     // render preview
-    const rendered = renderPreview(
-      {
+    const processor =
+      this.browserRegistry.resolve(
+        result.file.mimeType,
+      );
+
+    const processed =
+      await processor.process({
         mimeType: result.file.mimeType,
         buffer: result.file.buffer,
         displayName: result.file.displayName
+      });
+
+
+    const rendered = renderPreview(
+      {
+        mimeType: processed.mimeType,
+        buffer: processed.buffer,
+        displayName: processed.displayName ?? result.file.displayName
       },
       policy
     );
+
+    // DEV LOGGING
+    console.log(processed.mimeType);
 
     if (rendered.status !== "ok") {
       throw new PublicError(
@@ -243,10 +265,14 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
         "NOT_PREVIEWABLE"
       );
     }
-    
-    res.setHeader("Content-Type", "text/html");
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    for (const [key, value] of Object.entries(policy.headers)) {
+      res.setHeader(key, value);
+    }
     res.send(rendered.html);
-  
+    
+
   }
 
   // --------------------
@@ -269,9 +295,9 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     }
 
     // Browser policy for inline or sandbox preview 
-    const policy  = getBrowserContentPolicy(result.file.mimeType);
+    const policy = getBrowserContentPolicy(result.file.mimeType);
     res.setHeader("Content-Type", result.file.mimeType);
-    for (const [key, value] of Object.entries(policy.headers)){
+    for (const [key, value] of Object.entries(policy.headers)) {
       res.setHeader(key, value)
     }
 
@@ -350,11 +376,11 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // -------------------
   async getPublicAssets(req: any, res: any): Promise<void> {
 
-  const assets =
-    await this.options.assetManager.getPublicAssets();
+    const assets =
+      await this.options.assetManager.getPublicAssets();
 
-  res.json(assets);
-}
+    res.json(assets);
+  }
 
   // --------------------
   // DELETE
