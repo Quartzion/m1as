@@ -1,6 +1,6 @@
 import { IncomingHttpHeaders } from "http";
 import { Readable } from "stream";
-import { BrowserContentPolicy } from "../security/BrowserContentPolicy.js";
+import { BrowserContentPolicy } from "../security/browser/BrowserContentPolicy.js";
 
 export interface StreamAssetOptions {
     headers: IncomingHttpHeaders;

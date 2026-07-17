@@ -17,6 +17,7 @@ import { normalizeDisplayName } from "../utils/normalizeDisplayName.js";
 import { PublicError } from "../middleware/publicErrorHandler.js";
 import { StreamProvider, StreamRange } from "../stream/StreamProvider.js";
 import { SignedUrlService } from "../security/SignedUrlService.js";
+import { getBrowserCapabilities } from "../security/browser/GetBrowserCapabilities.js"
 
 export class AssetManager {
   constructor(
@@ -62,6 +63,7 @@ export class AssetManager {
       mimeType: asset.mimeType,
       size: asset.size,
       createdAt: asset.createdAt,
+      capabilities: getBrowserCapabilities(asset.mimeType)
     };
   }
 

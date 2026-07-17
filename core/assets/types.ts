@@ -1,3 +1,4 @@
+import { BrowserCapabilities } from "../security/browser/BrowserCapabilities.js";
 export type AssetId = string;
 
 export type AssetVisibility = "private" | "public";
@@ -21,6 +22,7 @@ export type PublicAssetMetadata = {
   mimeType: string;
   size: number;
   createdAt: Date;
+  capabilities: BrowserCapabilities;
 };
 
 export type PrivateAssetMetadata = PublicAssetMetadata & {

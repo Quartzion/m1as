@@ -11,9 +11,9 @@ import { streamAsset } from "../../core/utils/StreamAsset.js";
 import { SignedUrlService } from "../../core/security/SignedUrlService.js";
 import { parseRangeHeader } from "../../core/utils/parseRange.js";
 import { StreamRange } from "../../core/stream/StreamProvider.js";
-import { getBrowserContentPolicy } from "../../core/security/BrowserContentPolicy.js";
-import { BrowserContentRegistry } from "../../core/browser/BrowserContentRegistry.js";
-import { DefaultBrowserContentProcessor } from "../../core/browser/DefaultBrowserContentProcessor.js";
+import { getBrowserContentPolicy } from "../../core/security/browser/BrowserContentPolicy.js";
+import { BrowserContentRegistry } from "../../core/security/browser/BrowserContentRegistry.js";
+import { DefaultBrowserContentProcessor } from "../../core/security/browser/DefaultBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js"
 
 const pipelineAsync = promisify(pipeline);

@@ -1,4 +1,4 @@
-import { BrowserContentPolicy } from "../security/BrowserContentPolicy.js";
+import { BrowserContentPolicy } from "../security/browser/BrowserContentPolicy.js";
 
 export interface PreviewRenderInput {
     mimeType: string;
