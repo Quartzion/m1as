@@ -84,23 +84,69 @@
                 card.className = "asset-card";
 
                 card.innerHTML = `
-            <strong>${asset.displayName}</strong>
-            <br>
-            ${asset.mimeType}
-            <br>
-            ${(asset.size / 1024 / 1024).toFixed(2)} MB
-            <br>
-        `;
+                    <strong>${asset.displayName}</strong>
+                    <br>
+                    ${asset.mimeType}
+                    <br>
+                    ${(asset.size / 1024 / 1024).toFixed(2)} MB
+                    <br><br>
 
-                card.addEventListener(
-                    "click",
-                    () => loadAsset(asset)
-                );
+                    <button class="preview-btn">
+                    Preview
+                    </button>
+
+                    <button class="stream-btn">
+                    stream
+                    </button>
+                    `;
+
+                card
+                    .querySelector(".stream-btn")
+                    .addEventListener(
+                        "click",
+                        () => loadAsset(asset)
+                    );
+
+                card
+                    .querySelector(".preview-btn")
+                    .addEventListener(
+                        "click",
+                        () => loadPreview(asset)
+                    );
 
                 assetList.appendChild(card);
             });
         }
 
+
+        // LOAD PREVIEWS
+        async function loadPreview(asset) {
+
+            viewer.innerHTML = "Loading Preview...";
+
+        const response = await fetch(
+            `${API_BASE}/assets/${asset.id}/preview`,
+                {
+                    headers: {
+                    "m1as-user-id": "dev-user"
+                    }
+                }
+            );
+
+            if (!response.ok) {
+
+                viewer.innerHTML =
+                    `<pre>${await response.text()}</pre>`;
+
+                return;
+            }
+
+            const html = await response.text();
+
+            viewer.innerHTML = html;
+        }
+
+        // LOAD ASSETS
         async function loadAsset(asset) {
 
             const response = await fetch(
@@ -183,7 +229,7 @@
 
             link.href = signedUrl;
             link.textContent =
-                "Download Asset";
+                "stream Asset";
 
             link.target = "_blank";
 

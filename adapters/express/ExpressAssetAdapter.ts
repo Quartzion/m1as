@@ -256,7 +256,13 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     );
 
     // DEV LOGGING
-    console.log(processed.mimeType);
+    console.log({
+      processor: processor.constructor.name,
+      mimeType: processed.mimeType
+    });
+
+    console.log(policy);
+    // DEV LOGGING
 
     if (rendered.status !== "ok") {
       throw new PublicError(

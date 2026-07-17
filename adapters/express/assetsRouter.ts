@@ -41,7 +41,11 @@ export function createAssetRouter(options: AssetRouterOptions): Router {
   router.get("/:id/file/signed", options.streamRateLimit || ((_, __, next) => next()), adapter.getFileSigned.bind(adapter));
   router.get("/:id/signed", options.readRateLimit || ((_, __, next) => next()), adapter.getSignedUrl.bind(adapter))
   // preview route
-  router.get("/assets/:id/preview", (req, res) => adapter.getPreview(req, res));
+  router.get(
+  "/:id/preview",
+  options.readRateLimit || ((_, __, next) => next()),
+  adapter.getPreview.bind(adapter)
+  );
   router.delete("/:id", options.deleteRateLimit || ((_, __, next) => next()), (req, res) => adapter.delete(req, res));
 
 

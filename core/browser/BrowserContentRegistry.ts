@@ -11,6 +11,9 @@ export class BrowserContentRegistry {
         mimeType: string
     ): BrowserContentProcessor {
 
+        // DEV LOGGING
+        console.log("[BrowserRegistry]", mimeType);
+        
         return (
             this.processors.find(p =>
                 p.supportedMimeTypes.includes(mimeType)
