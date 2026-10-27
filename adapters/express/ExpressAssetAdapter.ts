@@ -16,6 +16,7 @@ import { BrowserContentRegistry } from "../../core/security/browser/BrowserConte
 import { DefaultBrowserContentProcessor } from "../../core/security/browser/DefaultBrowserContentProcessor.js";
 import { HtmlBrowserContentProcessor } from "../../core/security/browser/processors/HtmlBrowserContentProcessor.js";
 import { SvgBrowserContentProcessor } from "../../core/security/browser/processors/SvgBrowserContentProcessor.js";
+import { MarkdownBrowserContentProcessor } from "../../core/security/browser/processors/MarkdownBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js";
 
 const pipelineAsync = promisify(pipeline);
@@ -43,7 +44,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       new BrowserContentRegistry(
         [
           new HtmlBrowserContentProcessor(),
-          new SvgBrowserContentProcessor()
+          new SvgBrowserContentProcessor(),
+          new MarkdownBrowserContentProcessor()
         ],
         new DefaultBrowserContentProcessor()
       );
@@ -164,14 +166,17 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     const detected = await fileTypeFromBuffer(req.file.buffer);
     let mimeType = detected?.mime ?? req.file.mimetype ?? "application/octet-stream";
 
-    // 2. SVG Safe Type Override using your exact property: original_display_name
+    // 2. Safe Type Overrides using file extension mappings
     const fileName = (req.file.original_display_name || req.file.originalname || "").toLowerCase();
     
     if (fileName.endsWith(".svg")) {
       mimeType = "image/svg+xml";
     } else if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
       mimeType = "text/html";
+    } else if (fileName.endsWith(".md") || fileName.endsWith(".markdown")) {
+      mimeType = "text/markdown";
     }
+
 
     // 3. Clean parameters (e.g., text/html; charset=utf-8) before validation check
     const cleanMimeCheck = mimeType.toLowerCase().split(";")[0].trim();
