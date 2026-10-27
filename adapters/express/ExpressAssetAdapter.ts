@@ -17,6 +17,7 @@ import { DefaultBrowserContentProcessor } from "../../core/security/browser/Defa
 import { HtmlBrowserContentProcessor } from "../../core/security/browser/processors/HtmlBrowserContentProcessor.js";
 import { SvgBrowserContentProcessor } from "../../core/security/browser/processors/SvgBrowserContentProcessor.js";
 import { MarkdownBrowserContentProcessor } from "../../core/security/browser/processors/MarkdownBrowserContentProcessor.js";
+import { MermaidBrowserContentProcessor } from "../../core/security/browser/processors/MermaidBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js";
 
 const pipelineAsync = promisify(pipeline);
@@ -45,7 +46,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
         [
           new HtmlBrowserContentProcessor(),
           new SvgBrowserContentProcessor(),
-          new MarkdownBrowserContentProcessor()
+          new MarkdownBrowserContentProcessor(),
+          new MermaidBrowserContentProcessor()
         ],
         new DefaultBrowserContentProcessor()
       );
@@ -175,6 +177,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       mimeType = "text/html";
     } else if (fileName.endsWith(".md") || fileName.endsWith(".markdown")) {
       mimeType = "text/markdown";
+    } else if (fileName.endsWith(".mmd") || fileName.endsWith(".mermaid")) {
+      mimeType = "text/mermaid"; 
     }
 
 

@@ -45,8 +45,15 @@ const MARKDOWN_POLICY = Object.freeze<BrowserContentPolicy>({
     headers: NOSNIFF_HEADERS
 });
 
-const MARKDOWN_TYPES = new Set(["text/markdown", "text/x-markdown"]);
+const MERMAID_POLICY = Object.freeze<BrowserContentPolicy>({
+    disposition: "inline",
+    previewMode: "inline",
+    supportsPreview: true,
+    headers: NOSNIFF_HEADERS
+});
 
+const MERMAID_TYPES = new Set(["text/mermaid", "text/vnd.mermaid"]);
+const MARKDOWN_TYPES = new Set(["text/markdown", "text/x-markdown"]);
 const HTML_TYPES = new Set(["text/html", "application/xhtml+xml"]);
 const SVG_TYPES = new Set(["image/svg+xml"]);
 
@@ -67,6 +74,10 @@ export function getBrowserContentPolicy(mimeType: string): BrowserContentPolicy 
 
     if (MARKDOWN_TYPES.has(cleanMime)) {
         return MARKDOWN_POLICY;
+    }
+
+    if (MERMAID_TYPES.has(cleanMime)) {
+    return MERMAID_POLICY;
     }
 
     return INLINE_POLICY;
