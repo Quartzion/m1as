@@ -19,6 +19,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "file-type": "^21.2.0",
+    "mammoth": "^1.13.0",
     "multer": "^2.0.2",
     "sanitize-html": "^2.17.6"
   }

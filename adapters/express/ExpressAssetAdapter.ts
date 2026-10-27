@@ -18,6 +18,7 @@ import { HtmlBrowserContentProcessor } from "../../core/security/browser/process
 import { SvgBrowserContentProcessor } from "../../core/security/browser/processors/SvgBrowserContentProcessor.js";
 import { MarkdownBrowserContentProcessor } from "../../core/security/browser/processors/MarkdownBrowserContentProcessor.js";
 import { MermaidBrowserContentProcessor } from "../../core/security/browser/processors/MermaidBrowserContentProcessor.js";
+import { DocxBrowserContentProcessor } from "../../core/security/browser/processors/DocxBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js";
 
 const pipelineAsync = promisify(pipeline);
@@ -47,7 +48,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
           new HtmlBrowserContentProcessor(),
           new SvgBrowserContentProcessor(),
           new MarkdownBrowserContentProcessor(),
-          new MermaidBrowserContentProcessor()
+          new MermaidBrowserContentProcessor(),
+          new DocxBrowserContentProcessor()
         ],
         new DefaultBrowserContentProcessor()
       );
@@ -179,6 +181,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       mimeType = "text/markdown";
     } else if (fileName.endsWith(".mmd") || fileName.endsWith(".mermaid")) {
       mimeType = "text/mermaid"; 
+    } else if (fileName.endsWith(".docx")) {
+      mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     }
 
 
@@ -238,10 +242,9 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // GET PREVIEW
   // -------------------- 
   async getPreview(req: any, res: any): Promise<void> {
-
     const { id } = req.params;
 
-    // load file
+    // 1. Load the raw file from storage
     const result = await this.options.assetManager.getFileById(
       id,
       this.ownerId(req)
@@ -255,47 +258,36 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       throw new PublicError("Access_denied", 403, "ACCESS_DENIED");
     }
 
-    const policy = getBrowserContentPolicy(result.file.mimeType);
+    // 2. Resolve the format translator and process the buffer first
+    const processor = this.browserRegistry.resolve(result.file.mimeType);
 
-    if (!policy.supportsPreview) {
-      throw new PublicError(
-        "Preview_not_supported",
-        400,
-        "PREVIEW_NOT_SUPPORTED"
-      );
-    }
+    const processed = await processor.process({
+      mimeType: result.file.mimeType,
+      buffer: result.file.buffer,
+      displayName: result.file.displayName
+    });
 
+    // 3. CRITICAL SECURITY FIX: Evaluate the policy based on the DELIVERED format (processed.mimeType)
+    // This ensures Docx/Markdown outputs (text/html) inherit full HTML sandboxing protections!
+    const deliveryPolicy = getBrowserContentPolicy(processed.mimeType);
 
-    // render preview
-    const processor =
-      this.browserRegistry.resolve(
-        result.file.mimeType,
-      );
-
-    const processed =
-      await processor.process({
-        mimeType: result.file.mimeType,
-        buffer: result.file.buffer,
-        displayName: result.file.displayName
-      });
-
-
+    // 4. Pass the translated asset data and the corrected delivery policy to the preview renderer
     const rendered = renderPreview(
       {
         mimeType: processed.mimeType,
         buffer: processed.buffer,
         displayName: processed.displayName ?? result.file.displayName
       },
-      policy
+      deliveryPolicy // 👈 Use the active delivery policy here
     );
 
     // DEV LOGGING
     console.log({
       processor: processor.constructor.name,
-      mimeType: processed.mimeType
+      originalMime: result.file.mimeType,
+      deliveredMime: processed.mimeType
     });
-
-    console.log(policy);
+    console.log(deliveryPolicy);
     // DEV LOGGING
 
     if (rendered.status !== "ok") {
@@ -306,14 +298,14 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       );
     }
 
+    // 5. Stream down to client browser with perfect content classification headers
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    for (const [key, value] of Object.entries(policy.headers)) {
+    for (const [key, value] of Object.entries(deliveryPolicy.headers)) {
       res.setHeader(key, value);
     }
     res.send(rendered.html);
-    
-
   }
+
 
   // --------------------
   // GET FILE

@@ -52,6 +52,14 @@ const MERMAID_POLICY = Object.freeze<BrowserContentPolicy>({
     headers: NOSNIFF_HEADERS
 });
 
+const DOCX_POLICY = Object.freeze<BrowserContentPolicy>({
+    disposition: "inline",
+    previewMode: "inline",
+    supportsPreview: true, // 👈 Unlocks preview button rendering
+    headers: NOSNIFF_HEADERS
+});
+
+const DOCX_TYPES = new Set(["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const MERMAID_TYPES = new Set(["text/mermaid", "text/vnd.mermaid"]);
 const MARKDOWN_TYPES = new Set(["text/markdown", "text/x-markdown"]);
 const HTML_TYPES = new Set(["text/html", "application/xhtml+xml"]);
@@ -78,6 +86,10 @@ export function getBrowserContentPolicy(mimeType: string): BrowserContentPolicy 
 
     if (MERMAID_TYPES.has(cleanMime)) {
     return MERMAID_POLICY;
+    }
+
+    if (DOCX_TYPES.has(cleanMime)) {
+    return DOCX_POLICY;
     }
 
     return INLINE_POLICY;
