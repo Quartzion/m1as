@@ -47,9 +47,9 @@
     </button>
 
     <div id="ttlStatus"></div>
-    <div id="assetList"></div>
     <div id="viewer"></div>
-
+    <div id="assetList"></div>
+    
     <script>
         const API_BASE = window.location.origin;
         const assetList = document.getElementById("assetList");
@@ -83,36 +83,67 @@
 
                 card.className = "asset-card";
 
+                const previewButton =
+                    asset.capabilities?.canPreview
+                        ? `
+                        <button class="preview-btn">
+                        Preview
+                        </button>
+                         `
+                        : "";
+
+                const streamButton =
+                    asset.capabilities?.canStream
+                        ? `
+                        <button class="stream-btn">
+                        Stream
+                        </button>
+                        `
+                        : "";
+
+
                 card.innerHTML = `
                     <strong>${asset.displayName}</strong>
                     <br>
                     ${asset.mimeType}
                     <br>
                     ${(asset.size / 1024 / 1024).toFixed(2)} MB
+                    <br>
+
+                    Capabilities:
+                    <br>
+                    Stream: ${asset.capabilities?.canStream ? "Available" : "Unavailable"}
+                    <br>
+                    Preview: ${asset.capabilities?.canPreview ? "Available" : "Unavailable"}
+                    <br>
+                    Mode: ${asset.capabilities?.previewMode ?? "none"}
+                    <br>
+                    Download:
+                    ${asset.capabilities?.canDownload ? "Available" : "Unavailable"}
                     <br><br>
 
-                    <button class="preview-btn">
-                    Preview
-                    </button>
+                    ${previewButton}
+                    ${streamButton}
+                `;
 
-                    <button class="stream-btn">
-                    stream
-                    </button>
-                    `;
+                const streamBtn = card.querySelector(".stream-btn");
 
-                card
-                    .querySelector(".stream-btn")
-                    .addEventListener(
-                        "click",
+                if (streamBtn) {
+                    streamBtn.addEventListener("click",
                         () => loadAsset(asset)
                     );
+                }
 
-                card
-                    .querySelector(".preview-btn")
-                    .addEventListener(
+
+                const previewBtn =
+                    card.querySelector(".preview-btn");
+
+                if (previewBtn) {
+                    previewBtn.addEventListener(
                         "click",
                         () => loadPreview(asset)
                     );
+                }
 
                 assetList.appendChild(card);
             });
@@ -124,11 +155,11 @@
 
             viewer.innerHTML = "Loading Preview...";
 
-        const response = await fetch(
-            `${API_BASE}/assets/${asset.id}/preview`,
+            const response = await fetch(
+                `${API_BASE}/assets/${asset.id}/preview`,
                 {
                     headers: {
-                    "m1as-user-id": "dev-user"
+                        "m1as-user-id": "dev-user"
                     }
                 }
             );
