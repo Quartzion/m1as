@@ -14,7 +14,9 @@ import { StreamRange } from "../../core/stream/StreamProvider.js";
 import { getBrowserContentPolicy } from "../../core/security/browser/BrowserContentPolicy.js";
 import { BrowserContentRegistry } from "../../core/security/browser/BrowserContentRegistry.js";
 import { DefaultBrowserContentProcessor } from "../../core/security/browser/DefaultBrowserContentProcessor.js";
-import { renderPreview } from "../../core/utils/PreviewRender.js"
+import { HtmlBrowserContentProcessor } from "../../core/security/browser/processors/HtmlBrowserContentProcessor.js";
+import { SvgBrowserContentProcessor } from "../../core/security/browser/processors/SvgBrowserContentProcessor.js";
+import { renderPreview } from "../../core/utils/PreviewRender.js";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -39,7 +41,10 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     this.browserRegistry =
       options.browserRegistry ??
       new BrowserContentRegistry(
-        [],
+        [
+          new HtmlBrowserContentProcessor(),
+          new SvgBrowserContentProcessor()
+        ],
         new DefaultBrowserContentProcessor()
       );
 
