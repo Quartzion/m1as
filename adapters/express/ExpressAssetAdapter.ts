@@ -136,7 +136,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       await this.runMulter(req, res);
     } catch (err: any) {
       if (err instanceof multer.MulterError) {
-        throw new PublicError("run_multer_error", 400, "RUN_MULTER_ERROR");
+        throw new PublicError("run_multer_error", 400, "RUN_MUTTER_ERROR");
       }
       throw err;
     }
@@ -160,11 +160,32 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       }
     }
 
+    // 1. Detect binary signatures first
     const detected = await fileTypeFromBuffer(req.file.buffer);
-    const mimeType =
-      detected?.mime ??
-      req.file.mimetype ??
-      "application/octet-stream";
+    let mimeType = detected?.mime ?? req.file.mimetype ?? "application/octet-stream";
+
+    // 2. SVG Safe Type Override using your exact property: original_display_name
+    const fileName = (req.file.original_display_name || req.file.originalname || "").toLowerCase();
+    
+    if (fileName.endsWith(".svg")) {
+      mimeType = "image/svg+xml";
+    } else if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+      mimeType = "text/html";
+    }
+
+    // 3. Clean parameters (e.g., text/html; charset=utf-8) before validation check
+    const cleanMimeCheck = mimeType.toLowerCase().split(";")[0].trim();
+
+    // 4. Rigid Enforcement Check against your .env allowlist
+    const isAllowed = m1asConfig.allowedMimeTypes.includes(cleanMimeCheck);
+    if (!isAllowed) {
+      throw new PublicError(
+        `File type ${cleanMimeCheck} is explicitly restricted by system policy.`,
+        400,
+        "UNSUPPORTED_FILE_TYPE"
+      );
+    }
+
 
     let visibility: "private" | "public" = "private";
 
@@ -177,8 +198,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     const asset = await this.options.assetManager.upload({
       buffer: req.file.buffer,
-      displayName: req.file.original_display_name,
-      mimeType,
+      displayName: req.file.originalname,
+      mimeType: cleanMimeCheck,
       size: req.file.size,
       ownerId: this.ownerId(req),
       visibility
@@ -186,7 +207,6 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
 
     res.json(asset);
   }
-
   // --------------------
   // GET METADATA
   // --------------------
