@@ -6,60 +6,48 @@ export class MermaidBrowserContentProcessor implements BrowserContentProcessor {
     "text/mermaid"
   ]);
 
-  /**
-   * Translates raw diagram text into a structural HTML document embedding the Mermaid rendering layer.
-   * Focuses purely on translation, relying completely on the downstream pipeline's
-   * isolation headers for execution security.
-   */
   async process(input: BrowserContentInput): Promise<BrowserContentOutput> {
-    // 1. Read raw diagram bytes as clean UTF-8 text
-    const diagramRaw = input.buffer.toString("utf-8");
+    const rawText = input.buffer.toString("utf-8");
 
-    // 2. Generate a structural HTML shell that loads Mermaid via an isolated CDN reference
-    const htmlStructure = this.buildMermaidHtmlStructure(diagramRaw);
+    // Clean out wrapping markdown backtick structures cleanly
+    const lines = rawText.split(/\r?\n/);
+    const cleanedLines = lines.filter(line => {
+      const trimmed = line.trim().toLowerCase();
+      return !trimmed.startsWith("```mermaid") && trimmed !== "```";
+    });
 
-    // 3. Return the modified structure wrapped securely inside an inlineable preview payload
-    return {
-      mimeType: "text/html", // Escalate target to trigger HTML pipeline sandboxing
-      buffer: Buffer.from(htmlStructure, "utf-8"),
-      displayName: input.displayName
-    };
-  }
+    const cleanDiagram = cleanedLines.join("\n").trim();
 
-  /**
-   * Constructs an isolated HTML shell that handles client-side diagram generation safely.
-   */
-  private buildMermaidHtmlStructure(diagram: string): string {
-    return `<!DOCTYPE html>
+    // Raw HTML template structure block
+    const htmlStructure = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <style>
-    body { margin: 0; padding: 20px; background: #ffffff; font-family: sans-serif; display: flex; justify-content: center; }
+    body { margin: 0; padding: 25px; background: #ffffff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
     .mermaid { width: 100%; max-width: 100%; }
   </style>
 </head>
 <body>
-  <pre class="mermaid">
-${this.escapeHtmlEntities(diagram)}
-  </pre>
+  <div class="mermaid">
+${cleanDiagram}
+  </div>
+
   <script type="module">
-    import mermaid from 'https://jsdelivr.net';
-    mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: 'default' });
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ 
+      startOnLoad: true, 
+      securityLevel: 'loose', 
+      theme: 'default' 
+    });
   </script>
 </body>
 </html>`;
-  }
 
-  /**
-   * Helper to ensure raw syntax characters do not break structural page boundaries.
-   */
-  private escapeHtmlEntities(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    return {
+      mimeType: "text/html",
+      buffer: Buffer.from(htmlStructure, "utf-8"),
+      displayName: input.displayName
+    };
   }
 }

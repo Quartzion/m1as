@@ -49,7 +49,7 @@
     <div id="ttlStatus"></div>
     <div id="viewer"></div>
     <div id="assetList"></div>
-    
+
     <script>
         const API_BASE = window.location.origin;
         const assetList = document.getElementById("assetList");
@@ -150,32 +150,47 @@
         }
 
 
-        // LOAD PREVIEWS
+        // LOAD PREVIEWS (Secure Header Authenticated Sandbox via srcdoc)
         async function loadPreview(asset) {
-
             viewer.innerHTML = "Loading Preview...";
 
+            // 1. Fetch via standard network channels where custom headers work perfectly
             const response = await fetch(
                 `${API_BASE}/assets/${asset.id}/preview`,
                 {
                     headers: {
-                        "m1as-user-id": "dev-user"
+                        "m1as-user-id": "dev-user" // 👈 Clears your global middleware requirements
                     }
                 }
             );
 
             if (!response.ok) {
-
-                viewer.innerHTML =
-                    `<pre>${await response.text()}</pre>`;
-
+                viewer.innerHTML = `<pre>${await response.text()}</pre>`;
                 return;
             }
 
-            const html = await response.text();
+            const cleanHtmlPayload = await response.text();
 
-            viewer.innerHTML = html;
+            // 2. Instantiate a clean structural layout frame container
+            const iframe = document.createElement("iframe");
+            
+            // Enforce browser-level execution context rules
+            iframe.sandbox = "allow-scripts"; 
+            iframe.style.width = "100%";
+            iframe.style.height = "75vh";
+            iframe.style.border = "1px solid #ccc";
+            iframe.style.marginTop = "20px";
+            
+            // 3. Inject the safe translated HTML code block directly into the iframe target context
+            iframe.srcdoc = cleanHtmlPayload;
+
+            // Paint the isolated sandbox layout to screen
+            viewer.innerHTML = "";
+            viewer.appendChild(iframe);
         }
+
+
+
 
         // LOAD ASSETS
         async function loadAsset(asset) {

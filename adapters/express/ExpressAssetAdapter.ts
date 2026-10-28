@@ -81,7 +81,8 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   private ownerId(req: any): string | undefined {
     return (
       this.options.getOwnerId?.(req) ??
-      req.header?.("m1as-user-id")
+      req.header?.("m1as-user-id") ??
+      req.query?.userId
     );
   }
 
@@ -170,26 +171,32 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     const detected = await fileTypeFromBuffer(req.file.buffer);
     let mimeType = detected?.mime ?? req.file.mimetype ?? "application/octet-stream";
 
-    // 2. Safe Type Overrides using file extension mappings
-    const fileName = (req.file.original_display_name || req.file.originalname || "").toLowerCase();
+    // 2. HARDENED BOUNDARY: Absolute File Extension Priority
+    const rawFileName = req.file.original_display_name || req.file.originalname || "";
+    const fileName = String(rawFileName).toLowerCase().trim();
+    const fileContent = req.file.buffer.toString("utf-8");
     
     if (fileName.endsWith(".svg")) {
       mimeType = "image/svg+xml";
     } else if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
       mimeType = "text/html";
-    } else if (fileName.endsWith(".md") || fileName.endsWith(".markdown")) {
+    } 
+    // CRITICAL CORRECTION: Check for general markdown extension FIRST.
+    // If it's a .md file, it remains text/markdown even if it contains diagrams.
+    else if (fileName.endsWith(".md") || fileName.endsWith(".markdown")) {
       mimeType = "text/markdown";
-    } else if (fileName.endsWith(".mmd") || fileName.endsWith(".mermaid")) {
-      mimeType = "text/mermaid"; 
+    } 
+    // Pure standalone diagram files go to the chart pipeline
+    else if (fileName.endsWith(".mmd") || fileName.endsWith(".mermaid")) {
+      mimeType = "text/mermaid";
     } else if (fileName.endsWith(".docx")) {
       mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     }
 
-
-    // 3. Clean parameters (e.g., text/html; charset=utf-8) before validation check
+    // 3. Clean parameters before array inspection
     const cleanMimeCheck = mimeType.toLowerCase().split(";")[0].trim();
 
-    // 4. Rigid Enforcement Check against your .env allowlist
+    // 4. Rigid Verification against your .env strings list
     const isAllowed = m1asConfig.allowedMimeTypes.includes(cleanMimeCheck);
     if (!isAllowed) {
       throw new PublicError(
@@ -278,7 +285,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
         buffer: processed.buffer,
         displayName: processed.displayName ?? result.file.displayName
       },
-      deliveryPolicy // 👈 Use the active delivery policy here
+      deliveryPolicy
     );
 
     // DEV LOGGING

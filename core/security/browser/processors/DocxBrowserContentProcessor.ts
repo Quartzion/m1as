@@ -42,7 +42,7 @@ export class DocxBrowserContentProcessor implements BrowserContentProcessor {
 </head>
 <body>
   <div class="word-page">
-    <div class="meta-tag">Asset Processing Isolation Node</div>
+    <div class="meta-tag">M1AS Asset Processing Isolation Node</div>
     <h2>${this.escapeHtml(input.displayName)}</h2>
     <div class="document-content">
       ${documentHtml}

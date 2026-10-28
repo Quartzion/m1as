@@ -11,19 +11,24 @@ export function renderPreview(
     policy: BrowserContentPolicy
 ) {
     if (!policy.supportsPreview) {
+        return { status: "not_previewable" as const };
+    }
+
+    // CRITICAL FIX: If the processor has already transformed the content to text/html,
+    // skip all markdown/text escaping loops. Return the raw HTML string exactly as-is!
+    if (input.mimeType === "text/html") {
         return {
-            status: "not_previewable" as const
+            status: "ok" as const,
+            html: input.buffer.toString("utf-8")
         };
     }
 
     switch (policy.previewMode) {
-
         case "sandboxed":
             return {
                 status: "ok" as const,
                 html: buildSandboxedFrame(input)
             };
-
         case "inline":
             return {
                 status: "ok" as const,
@@ -34,41 +39,14 @@ export function renderPreview(
 
 function buildSandboxedFrame(input: PreviewRenderInput): string {
     const base64 = input.buffer.toString("base64");
-
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-</head>
-<body>
-  <iframe
-    sandbox=""
-    style="width:100%;height:100vh;border:0"
-    src="data:${input.mimeType};base64,${base64}">
-  </iframe>
-</body>
-</html>
-`;
+    return `<!DOCTYPE html><html><body style="margin:0;"><iframe sandbox="allow-scripts" style="width:100%;height:100vh;border:0" src="data:${input.mimeType};base64,${base64}"></iframe></body></html>`;
 }
 
 function buildInlineView(input: PreviewRenderInput): string {
     const text = input.buffer.toString("utf-8");
-
-    return `
-<!DOCTYPE html>
-<html>
-<body>
-<pre>${escapeHtml(text)}</pre>
-</body>
-</html>
-`;
+    return `<!DOCTYPE html><html><body><pre>${escapeHtml(text)}</pre></body></html>`;
 }
 
 function escapeHtml(str: string) {
-    return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-

@@ -14,7 +14,7 @@ const NOSNIFF_HEADERS = Object.freeze({
 
 const SANDBOX_HEADERS = Object.freeze({
     ...NOSNIFF_HEADERS,
-    "Content-Security-Policy": "default-src 'none'; sandbox;"
+    "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; sandbox allow-scripts;"
 });
 
 const INLINE_POLICY = Object.freeze<BrowserContentPolicy>({
@@ -40,22 +40,22 @@ const SVG_POLICY = Object.freeze<BrowserContentPolicy>({
 
 const MARKDOWN_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
-    previewMode: "inline",
+    previewMode: "sandboxed",
     supportsPreview: true,
     headers: NOSNIFF_HEADERS
 });
 
 const MERMAID_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
-    previewMode: "inline",
+    previewMode: "sandboxed",
     supportsPreview: true,
-    headers: NOSNIFF_HEADERS
+    headers: SANDBOX_HEADERS
 });
 
 const DOCX_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
     previewMode: "inline",
-    supportsPreview: true, // 👈 Unlocks preview button rendering
+    supportsPreview: true,
     headers: NOSNIFF_HEADERS
 });
 
