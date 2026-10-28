@@ -42,7 +42,7 @@ const MARKDOWN_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
     previewMode: "sandboxed",
     supportsPreview: true,
-    headers: NOSNIFF_HEADERS
+    headers: SANDBOX_HEADERS
 });
 
 const MERMAID_POLICY = Object.freeze<BrowserContentPolicy>({
