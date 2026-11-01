@@ -19,6 +19,8 @@ import { SvgBrowserContentProcessor } from "../../core/security/browser/processo
 import { MarkdownBrowserContentProcessor } from "../../core/security/browser/processors/MarkdownBrowserContentProcessor.js";
 import { MermaidBrowserContentProcessor } from "../../core/security/browser/processors/MermaidBrowserContentProcessor.js";
 import { DocxBrowserContentProcessor } from "../../core/security/browser/processors/DocxBrowserContentProcessor.js";
+import { XlsxBrowserContentProcessor } from "../../core/security/browser/processors/XlsxBrowserContentProcessor.js";
+import { GlbBrowserContentProcessor } from "../../core/security/browser/processors/GlbBrowserContentProcessor.js";
 import { renderPreview } from "../../core/utils/PreviewRender.js";
 
 const pipelineAsync = promisify(pipeline);
@@ -49,7 +51,9 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
           new SvgBrowserContentProcessor(),
           new MarkdownBrowserContentProcessor(),
           new MermaidBrowserContentProcessor(),
-          new DocxBrowserContentProcessor()
+          new DocxBrowserContentProcessor(),
+          new XlsxBrowserContentProcessor(),
+          new GlbBrowserContentProcessor()
         ],
         new DefaultBrowserContentProcessor()
       );
@@ -191,6 +195,10 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       mimeType = "text/mermaid";
     } else if (fileName.endsWith(".docx")) {
       mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    } else if (fileName.endsWith(".xlsx")) {
+      mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else if (fileName.endsWith(".glb")) {
+      mimeType = "model/gltf-binary";
     }
 
     // 3. Clean parameters before array inspection

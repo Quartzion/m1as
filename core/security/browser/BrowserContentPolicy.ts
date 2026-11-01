@@ -12,9 +12,13 @@ const NOSNIFF_HEADERS = Object.freeze({
     "X-Content-Type-Options": "nosniff"
 });
 
+// const SANDBOX_HEADERS = Object.freeze({
+//     ...NOSNIFF_HEADERS,
+//     "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; sandbox allow-scripts;"
+// });
 const SANDBOX_HEADERS = Object.freeze({
     ...NOSNIFF_HEADERS,
-    "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; sandbox allow-scripts;"
+    "Content-Security-Policy": "default-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://cdn.jsdelivr.net; worker-src 'self' blob: data:; sandbox allow-scripts allow-same-origin;"
 });
 
 const INLINE_POLICY = Object.freeze<BrowserContentPolicy>({
@@ -59,6 +63,22 @@ const DOCX_POLICY = Object.freeze<BrowserContentPolicy>({
     headers: NOSNIFF_HEADERS
 });
 
+const XLSX_POLICY = Object.freeze<BrowserContentPolicy>({
+    disposition: "inline",
+    previewMode: "sandboxed",
+    supportsPreview: true,
+    headers: SANDBOX_HEADERS
+});
+
+const GLB_POLICY = Object.freeze<BrowserContentPolicy>({
+    disposition: "inline",
+    previewMode: "sandboxed",
+    supportsPreview: true,
+    headers: SANDBOX_HEADERS
+});
+
+const XLSX_TYPES = new Set(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+const GLB_TYPES = new Set(["model/gltf-binary"]);
 const DOCX_TYPES = new Set(["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const MERMAID_TYPES = new Set(["text/mermaid", "text/vnd.mermaid"]);
 const MARKDOWN_TYPES = new Set(["text/markdown", "text/x-markdown"]);
@@ -72,25 +92,13 @@ export function getBrowserContentPolicy(mimeType: string): BrowserContentPolicy 
     // Clean parameter formatting like text/html;charset=utf-8
     const cleanMime = mimeType.toLowerCase().split(";")[0].trim();
 
-    if (HTML_TYPES.has(cleanMime)) {
-        return HTML_POLICY;
-    }
-
-    if (SVG_TYPES.has(cleanMime)) {
-        return SVG_POLICY;
-    }
-
-    if (MARKDOWN_TYPES.has(cleanMime)) {
-        return MARKDOWN_POLICY;
-    }
-
-    if (MERMAID_TYPES.has(cleanMime)) {
-    return MERMAID_POLICY;
-    }
-
-    if (DOCX_TYPES.has(cleanMime)) {
-    return DOCX_POLICY;
-    }
+    if (HTML_TYPES.has(cleanMime)) return HTML_POLICY;
+    if (SVG_TYPES.has(cleanMime)) return SVG_POLICY;
+    if (MARKDOWN_TYPES.has(cleanMime)) return MARKDOWN_POLICY;
+    if (MERMAID_TYPES.has(cleanMime)) return MERMAID_POLICY;
+    if (DOCX_TYPES.has(cleanMime)) return DOCX_POLICY;
+    if (XLSX_TYPES.has(cleanMime)) return XLSX_POLICY;
+    if (GLB_TYPES.has(cleanMime)) return GLB_POLICY;
 
     return INLINE_POLICY;
 }

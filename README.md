@@ -266,7 +266,8 @@ m1as comes with an internal rate limiter to help prevent abuse and restrict port
 ```ruby
 curl -v -X POST http://localhost:<PORT>/assets \
   -H "m1as-user-id: ANY-USER-123" \
-  -F "file=@C:<your-filepath>/<your-file>.png"
+  -F "file=@C:<your-filepath>/<your-file>.png" \
+  -F "visibility=public"
 ```
 <!-- JSON body -->
 ```ruby

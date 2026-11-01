@@ -270,16 +270,21 @@
             }
 
             // Fallback
-            const link =
-                document.createElement("a");
-
+            const link = document.createElement("a");
             link.href = signedUrl;
-            link.textContent =
-                "Click to stream text asset";
-
             link.target = "_blank";
 
+            // Clean up text content according to asset type
+            if (asset.mimeType.includes("spreadsheetml") || asset.mimeType.includes("xlsx")) {
+                link.textContent = "Download Spreadsheet Asset (.xlsx)";
+            } else if (asset.mimeType.includes("gltf-binary") || asset.mimeType.includes("glb")) {
+                link.textContent = "Download 3D Model Asset (.glb)";
+            } else {
+                link.textContent = "Click to stream text asset";
+            }
+
             viewer.appendChild(link);
+
         }
 
         function startCountdown(expires, ttl) {

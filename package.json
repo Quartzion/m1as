@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build:vendor": "npx tsc core/utils/scripts/build-vendor.ts --target es2022 --module esnext --moduleResolution node && node core/utils/scripts/build-vendor.js && node -e \"fs.rmSync('core/utils/scripts/build-vendor.js', {force: true})\"",
+    "build": "npm run build:vendor && tsc",
     "m1asLocalRun": "node dist/server/m1asServer.js"
   },
   "devDependencies": {
@@ -21,6 +22,7 @@
     "file-type": "^21.2.0",
     "mammoth": "^1.13.0",
     "multer": "^2.0.2",
-    "sanitize-html": "^2.17.6"
+    "sanitize-html": "^2.17.6",
+    "xlsx": "^0.18.5"
   }
 }
