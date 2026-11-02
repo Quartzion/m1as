@@ -310,7 +310,7 @@
             viewer.appendChild(iframe);
         }
 
-        async function loadAsset(asset) {
+                async function loadAsset(asset) {
             const response = await fetch(`${API_BASE}/assets/${asset.id}/signed`);
             const signed = await response.json();
 
@@ -324,42 +324,24 @@
                 cardUrlDisplay.style.fontStyle = "normal";
             }
 
+            // Clean checking parameters
             const currentMime = (asset.mimeType || "").toLowerCase().trim();
             const currentName = (asset.displayName || "").toLowerCase().trim();
 
-            if (currentMime === "model/gltf-binary" || currentName.endsWith(".glb")) {
-                streamUrlInput.value = signedUrl;
-                renderComponentInstance(signedUrl, asset.displayName);
-                viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated token string successfully piped to Component Playground!</p>`;
-                return;
-            }
-
-            viewer.innerHTML = "";
-            if (asset.mimeType.startsWith("video/")) {
-                const video = document.createElement("video");
-                video.controls = true;
-                video.width = 600;
-                video.src = signedUrl;
-                viewer.appendChild(video);
-            } else if (asset.mimeType.startsWith("image/")) {
-                const img = document.createElement("img");
-                img.src = signedUrl;
-                img.style.maxWidth = "600px";
-                viewer.appendChild(img);
-            } else {
-                const link = document.createElement("a");
-                link.href = signedUrl;
-                link.target = "_blank";
-                link.textContent = "Download asset directly (Using Token)";
-                viewer.appendChild(link);
-            }
+            // 💎 UNIFIED MULTI-FORMAT PLAYGROUND ROUTER
+            // Every stream-eligible asset is now fast-tracked straight to the Composable Component Staging area
+            streamUrlInput.value = signedUrl;
+            renderComponentInstance(signedUrl, asset.displayName, currentMime);
+            
+            viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated ${currentMime.split('/')[1].toUpperCase()} stream payload securely piped to Component Playground!</p>`;
         }
-        // 💎 FIXED: Mounts nodes prior to engine parsing to prevent blob pointer revocation
-        async function renderComponentInstance(url, name = "Streamed Asset") {
+
+        // 💎 UNIVERSAL RUNTIME FACTORY: Captures raw bytes for ALL safe formats and creates nested native canvas nodes
+        async function renderComponentInstance(url, name = "Streamed Asset", explicitMime = "") {
             if (!url || url.trim() === "") return;
 
             componentStage.innerHTML = `<div id="m1as-loading" style="text-align: center; color: #0076ff; padding: 40px 0; font-style: italic;">
-                Streaming binary mesh data directly over network...
+                Streaming binary payload data directly over network...
             </div>`;
 
             try {
@@ -371,51 +353,90 @@
                     throw new Error(`Streaming route connection dropped with status code: ${response.status}`);
                 }
                 const blob = await response.blob();
+                
+                // Deduce target mime classification from binary blob signature if route meta was blank
+                const mime = explicitMime || blob.type.toLowerCase().trim();
                 const safeBlobUrl = URL.createObjectURL(blob);
 
                 componentStage.innerHTML = "";
 
+                // Maintain transparent, composable button structural tree wraps
                 const wrapper = document.createElement("div");
                 wrapper.className = "m1as-interactive-wrapper";
-                // Style transparency on the outer component layout block
                 wrapper.style.background = "transparent";
                 wrapper.style.border = "none";
                 wrapper.style.boxShadow = "none";
 
                 const functionalButton = document.createElement("button");
                 functionalButton.className = "m1as-nested-button";
-                // 💎 FLOATING TRANSPARENCY: Strips default button background colors completely
                 functionalButton.style.background = "transparent";
                 functionalButton.style.border = "none";
-                functionalButton.onclick = () => alert(`🎯 M1AS Composable Action Clicked! Event bound for: ${name}`);
+                functionalButton.onclick = () => alert(`🎯 M1AS Composable Action! Event executed cleanly for [${mime}] element: ${name}`);
 
                 const btnLabel = document.createElement("span");
                 btnLabel.className = "m1as-btn-label";
-                btnLabel.style.background = "rgba(0, 118, 255, 0.9)"; // Make label pop on floating transparency
+                btnLabel.style.background = "rgba(0, 118, 255, 0.9)";
                 btnLabel.innerText = "Click Composable Button";
 
-                const modelViewerElement = document.createElement("model-viewer");
-                modelViewerElement.className = "inline-3d-canvas";
-                modelViewerElement.style.height = "100%";
-                // 💎 NO BACKGROUND: Setting background to transparent forces seamless overlaying behaviors like an SVG
-                modelViewerElement.style.background = "transparent";
-                modelViewerElement.style.border = "none";
-                modelViewerElement.src = safeBlobUrl;
-                modelViewerElement.alt = `M1AS Runtime Streamed Component: ${name}`;
+                // 💎 FACTORY NODE DETERMINATION SWITCH
+                let renderNode;
 
-                modelViewerElement.setAttribute("camera-controls", "");
-                modelViewerElement.setAttribute("auto-rotate", "");
-                modelViewerElement.setAttribute("interaction-prompt", "none");
+                if (mime === "model/gltf-binary" || name.toLowerCase().endsWith(".glb")) {
+                    // 3D Objects
+                    renderNode = document.createElement("model-viewer");
+                    renderNode.setAttribute("camera-controls", "");
+                    renderNode.setAttribute("auto-rotate", "");
+                    renderNode.setAttribute("interaction-prompt", "none");
+                } 
+                else if (mime.startsWith("video/")) {
+                    // Video Streams (.mp4, etc)
+                    renderNode = document.createElement("video");
+                    renderNode.autoplay = true;
+                    renderNode.muted = true; // Essential to permit unconditional autoplay cycles in modern browsers
+                    renderNode.loop = true;
+                    renderNode.controls = false; // Kept hidden to emphasize seamless button surface integration
+                } 
+                else if (mime.startsWith("audio/")) {
+                    // Audio Tracks (.mp3, .wav)
+                    renderNode = document.createElement("audio");
+                    renderNode.autoplay = true;
+                    renderNode.controls = true; // Visible audio timeline UI inside the container box
+                    renderNode.style.position = "absolute";
+                    renderNode.style.top = "50%";
+                    renderNode.style.transform = "translateY(-50%)";
+                    renderNode.style.padding = "0 10px";
+                } 
+                else if (mime === "application/pdf") {
+                    // Document Assets (.pdf embedded directly into layout view)
+                    renderNode = document.createElement("embed");
+                    renderNode.type = "application/pdf";
+                } 
+                else if (mime.startsWith("image/") || mime === "image/svg+xml") {
+                    // Static Graphic Files and Vectors (.png, .jpg, .webp, .svg)
+                    renderNode = document.createElement("img");
+                    renderNode.alt = `M1AS Composable Image: ${name}`;
+                } 
+                else {
+                    // Plaintext Fallbacks (.txt, .md source logging)
+                    renderNode = document.createElement("iframe");
+                    renderNode.sandbox = "allow-scripts";
+                }
 
-                functionalButton.appendChild(modelViewerElement);
+                // Inject universal layout canvas classes and source allocations
+                renderNode.className = "inline-3d-canvas"; // Reuses standard sizing class parameters cleanly
+                renderNode.style.width = "100%";
+                renderNode.style.height = "100%";
+                renderNode.style.background = "transparent";
+                renderNode.style.border = "none";
+                renderNode.src = safeBlobUrl;
+
+                // Mount tree node elements
+                functionalButton.appendChild(renderNode);
                 functionalButton.appendChild(btnLabel);
                 wrapper.appendChild(functionalButton);
-                
                 componentStage.appendChild(wrapper);
 
-                modelViewerElement.addEventListener('load', () => {
-                    console.log(`[M1AS Memory Bridge] Context successfully mounted for ${name}`);
-                });
+                console.log(`[M1AS Multi-Bridge] Local memory pointer successfully generated for MIME: ${mime}`);
 
             } catch (err) {
                 componentStage.innerHTML = `
