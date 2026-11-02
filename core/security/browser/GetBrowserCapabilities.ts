@@ -14,7 +14,8 @@ const SAFE_STREAM_EXACT_TYPES = Object.freeze([
   "image/webp",
   "image/gif",
   "text/plain",
-  "application/pdf"
+  "application/pdf",
+  "model/gltf-binary" 
 ]);
 
 export function getBrowserCapabilities(mimeType: string): BrowserCapabilities {

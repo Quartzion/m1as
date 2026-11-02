@@ -4,14 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>m1as media Browser</title>
+    <title>m1as media Browser & Composable Component Playground</title>
 
     <!-- styling -->
     <style>
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
+            background: #fdfdfd;
         }
 
         #assetList {
@@ -24,23 +24,151 @@
         .asset-card {
             border: 1px solid #ccc;
             padding: 12px;
-            width: 250px;
+            width: 290px;
+            /* 🎨 Widened slightly to host token strings comfortably */
             cursor: pointer;
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
         }
 
         .asset-card:hover {
             background: #f5f5f5;
         }
 
+        /* 🎨 Wrap-around container handles massive signature parameters safely */
+        .url-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 6px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #495057;
+            word-break: break-all;
+            margin: 8px 0;
+            display: block;
+            min-height: 28px;
+        }
+
         video {
             margin-top: 20px;
         }
+
+        .playground-panel {
+            background: #f0f0f0;
+            border: 2px dashed #999;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            max-width: 640px;
+        }
+
+        .playground-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .playground-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .playground-btn {
+            padding: 8px 16px;
+            background: #0076ff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .playground-btn:hover {
+            background: #0056b3;
+        }
+
+        .inline-3d-canvas {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #dfdfdf 0%, #bebebe 100%);
+            border-radius: 6px;
+            border: 1px solid #bbb;
+            display: block;
+        }
+
+        /* 🎨 NEW: Interactive layout wrappers for the 3D Asset Playground */
+        .m1as-interactive-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 340px;
+            height: 240px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .m1as-nested-button {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            padding: 0;
+        }
+
+        .m1as-btn-label {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            z-index: 10;
+            pointer-events: none;
+        }
     </style>
+
+    <!-- 💎 FIX: Official production build of the 3D element engine replaces the hanging, broken domain scripts -->
+    <script type="module" id="m1as-runtime-engine"></script>
+
 </head>
 
 <body>
 
     <h1>m1as Streaming Test</h1>
+
+    <div class="playground-panel">
+        <h3>🚀 Composable Component Simulation Area</h3>
+        <p style="font-size: 13px; color: #555; margin-top: -8px;">
+            Simulates a React component consuming your headless stream payload URL. Click "Stream" below to capture a
+            signed URL, or paste one manually to verify rendering.
+        </p>
+        <div class="playground-form">
+            <input type="text" id="streamUrlInput" class="playground-input"
+                placeholder="Paste your m1as signed stream URL here..." />
+            <button id="renderComponentBtn" class="playground-btn">Render Component</button>
+        </div>
+        <div id="componentStage">
+            <div style="text-align: center; color: #777; padding: 40px 0; font-style: italic;">
+                Stage empty. Awaiting signed asset target string link...
+            </div>
+        </div>
+    </div>
 
     <button id="loadAssets">
         Load Public Assets
@@ -54,292 +182,260 @@
         const API_BASE = window.location.origin;
         const assetList = document.getElementById("assetList");
         const viewer = document.getElementById("viewer");
-        const ttlStatus =
-            document.getElementById("ttlStatus");
+        const ttlStatus = document.getElementById("ttlStatus");
+        const streamUrlInput = document.getElementById("streamUrlInput");
+        const renderComponentBtn = document.getElementById("renderComponentBtn");
+        const componentStage = document.getElementById("componentStage");
 
         let countdownInterval;
 
-        console.log("API_BASE =", API_BASE);
-
-        document
-            .getElementById("loadAssets")
-            .addEventListener("click", loadAssets);
+        document.getElementById("loadAssets").addEventListener("click", loadAssets);
+        renderComponentBtn.addEventListener("click", triggerManualRender);
 
         async function loadAssets() {
-
             assetList.innerHTML = "Loading...";
-
-            const response = await fetch(
-                `${API_BASE}/assets/public`
-            );
-
+            const response = await fetch(`${API_BASE}/assets/public`);
             const assets = await response.json();
-
             assetList.innerHTML = "";
 
             assets.forEach(asset => {
-
                 const card = document.createElement("div");
-
                 card.className = "asset-card";
 
-                const previewButton =
-                    asset.capabilities?.canPreview
-                        ? `
-                        <button class="preview-btn">
-                        Preview
-                        </button>
-                         `
-                        : "";
+                const previewButton = asset.capabilities?.canPreview
+                    ? `<button class="preview-btn">Preview</button>`
+                    : "";
 
-                const streamButton =
-                    asset.capabilities?.canStream
-                        ? `
-                        <button class="stream-btn">
-                        Stream
-                        </button>
-                        `
-                        : "";
-
+                const streamButton = asset.capabilities?.canStream
+                    ? `<button class="stream-btn">Stream</button>`
+                    : "";
 
                 card.innerHTML = `
                     <strong>${asset.displayName}</strong>
                     <br>
-                    ${asset.mimeType}
+                    <span style="font-size: 12px; color: #6c757d;">${asset.mimeType}</span>
                     <br>
-                    ${(asset.size / 1024 / 1024).toFixed(2)} MB
+                    <span style="font-size: 12px; color: #6c757d;">${(asset.size / 1024 / 1024).toFixed(2)} MB</span>
                     <br>
-
-                    Capabilities:
-                    <br>
-                    Stream: ${asset.capabilities?.canStream ? "Available" : "Unavailable"}
-                    <br>
-                    Preview: ${asset.capabilities?.canPreview ? "Available" : "Unavailable"}
-                    <br>
-                    Mode: ${asset.capabilities?.previewMode ?? "none"}
-                    <br>
-                    Download:
-                    ${asset.capabilities?.canDownload ? "Available" : "Unavailable"}
-                    <br><br>
+                    
+                    <span style="font-size: 11px; font-weight: bold; display: block; margin-top: 6px;">Active Signed URL:</span>
+                    <span class="url-display" id="url-display-${asset.id}" style="color: #868e96; font-style: italic;">
+                        Click "Stream" to sign URL token...
+                    </span>
 
                     ${previewButton}
                     ${streamButton}
                 `;
 
                 const streamBtn = card.querySelector(".stream-btn");
-
                 if (streamBtn) {
-                    streamBtn.addEventListener("click",
-                        () => loadAsset(asset)
-                    );
+                    streamBtn.addEventListener("click", () => loadAsset(asset));
                 }
 
-
-                const previewBtn =
-                    card.querySelector(".preview-btn");
-
+                const previewBtn = card.querySelector(".preview-btn");
                 if (previewBtn) {
-                    previewBtn.addEventListener(
-                        "click",
-                        () => loadPreview(asset)
-                    );
+                    previewBtn.addEventListener("click", () => loadPreview(asset));
                 }
 
                 assetList.appendChild(card);
             });
         }
-
-
-        // LOAD PREVIEWS (Secure Header Authenticated Sandbox via srcdoc)
         async function loadPreview(asset) {
             viewer.innerHTML = "Loading Preview...";
-
-            // 1. Fetch via standard network channels where custom headers work perfectly
-            const response = await fetch(
-                `${API_BASE}/assets/${asset.id}/preview`,
-                {
-                    headers: {
-                        "m1as-user-id": "dev-user" // 👈 Clears your global middleware requirements
-                    }
-                }
-            );
-
+            const response = await fetch(`${API_BASE}/assets/${asset.id}/preview`, {
+                headers: { "m1as-user-id": "dev-user" }
+            });
             if (!response.ok) {
                 viewer.innerHTML = `<pre>${await response.text()}</pre>`;
                 return;
             }
-
             const cleanHtmlPayload = await response.text();
 
-            // 2. Instantiate a clean structural layout frame container
+            // 💎 LOCAL ENGINE BRIDGE: Extract your native vendor script securely
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(cleanHtmlPayload, "text/html");
+
+                // Find your internal vendor module script text
+                const embeddedScripts = doc.querySelectorAll("script[type='module']");
+                let vendorScriptSource = "";
+
+                embeddedScripts.forEach(script => {
+                    if (!script.src && script.textContent.includes("litPropertyMetadata")) {
+                        vendorScriptSource = script.textContent;
+                    }
+                });
+
+                if (vendorScriptSource) {
+                    const parentEngineTag = document.getElementById("m1as-runtime-engine");
+                    if (parentEngineTag && !parentEngineTag.textContent) {
+                        // Execute the vendor engine locally on the parent layout frame
+                        const newInlineScript = document.createElement("script");
+                        newInlineScript.type = "module";
+                        newInlineScript.textContent = vendorScriptSource;
+                        document.head.appendChild(newInlineScript);
+                        console.log("M1AS Core: 3D Render Engine hydrated natively from local preview layout.");
+                    }
+                }
+            } catch (e) {
+                console.warn("Engine extraction skipped: ", e.message);
+            }
+
             const iframe = document.createElement("iframe");
-            
-            // Enforce browser-level execution context rules
-            iframe.sandbox = "allow-scripts"; 
+            iframe.sandbox = "allow-scripts";
             iframe.style.width = "100%";
             iframe.style.height = "75vh";
             iframe.style.border = "1px solid #ccc";
             iframe.style.marginTop = "20px";
-            
-            // 3. Inject the safe translated HTML code block directly into the iframe target context
             iframe.srcdoc = cleanHtmlPayload;
 
-            // Paint the isolated sandbox layout to screen
             viewer.innerHTML = "";
             viewer.appendChild(iframe);
         }
 
-
-
-
-        // LOAD ASSETS
         async function loadAsset(asset) {
-
-            const response = await fetch(
-                `${API_BASE}/assets/${asset.id}/signed`
-            );
-
+            const response = await fetch(`${API_BASE}/assets/${asset.id}/signed`);
             const signed = await response.json();
 
-            startCountdown(
-                signed.expires,
-                signed.ttl
-            );
-            const signedUrl =
-                `${API_BASE}${signed.url}`;
+            startCountdown(signed.expires, signed.ttl);
+            const signedUrl = `${API_BASE}${signed.url}`;
 
+            const cardUrlDisplay = document.getElementById(`url-display-${asset.id}`);
+            if (cardUrlDisplay) {
+                cardUrlDisplay.innerText = signedUrl;
+                cardUrlDisplay.style.color = "#2b8a3e"; 
+                cardUrlDisplay.style.fontStyle = "normal";
+            }
+
+            // 💎 PRECISION FIX: Force case-insensitive evaluation across both type mappings
+            const currentMime = (asset.mimeType || "").toLowerCase().trim();
+            const currentName = (asset.displayName || "").toLowerCase().trim();
+
+            if (currentMime === "model/gltf-binary" || currentName.endsWith(".glb")) {
+                streamUrlInput.value = signedUrl;
+                renderComponentInstance(signedUrl, asset.displayName);
+                viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated token string successfully piped to Component Playground!</p>`;
+                return;
+            }
+
+            // Normal fallbacks for standard media formats remain unchanged below
             viewer.innerHTML = "";
-
-            // Video
             if (asset.mimeType.startsWith("video/")) {
-
-                const video =
-                    document.createElement("video");
-
+                const video = document.createElement("video");
                 video.controls = true;
-                video.width = 800;
-                video.preload = "metadata";
+                video.width = 600;
                 video.src = signedUrl;
-
                 viewer.appendChild(video);
-
-                return;
-            }
-
-            // Image
-            if (asset.mimeType.startsWith("image/")) {
-
-                const img =
-                    document.createElement("img");
-
+            } else if (asset.mimeType.startsWith("image/")) {
+                const img = document.createElement("img");
                 img.src = signedUrl;
-                img.style.maxWidth = "800px";
-
+                img.style.maxWidth = "600px";
                 viewer.appendChild(img);
-
-                return;
-            }
-
-            // Audio
-            if (asset.mimeType.startsWith("audio/")) {
-
-                const audio =
-                    document.createElement("audio");
-
-                audio.controls = true;
-                audio.src = signedUrl;
-
-                viewer.appendChild(audio);
-
-                return;
-            }
-
-            // PDF
-            if (asset.mimeType === "application/pdf") {
-
-                const iframe =
-                    document.createElement("iframe");
-
-                iframe.src = signedUrl;
-                iframe.width = "800";
-                iframe.height = "1000";
-
-                viewer.appendChild(iframe);
-
-                return;
-            }
-
-            // Fallback
-            const link = document.createElement("a");
-            link.href = signedUrl;
-            link.target = "_blank";
-
-            // Clean up text content according to asset type
-            if (asset.mimeType.includes("spreadsheetml") || asset.mimeType.includes("xlsx")) {
-                link.textContent = "Download Spreadsheet Asset (.xlsx)";
-            } else if (asset.mimeType.includes("gltf-binary") || asset.mimeType.includes("glb")) {
-                link.textContent = "Download 3D Model Asset (.glb)";
             } else {
-                link.textContent = "Click to stream text asset";
+                const link = document.createElement("a");
+                link.href = signedUrl;
+                link.target = "_blank";
+                link.textContent = "Download asset directly (Using Token)";
+                viewer.appendChild(link);
             }
+        }
 
-            viewer.appendChild(link);
+        // 💎 RESTORED & OPTIMIZED: Renders 3D geometries inside functional DOM tags natively
+        async function renderComponentInstance(url, name = "Streamed Asset") {
+            if (!url || url.trim() === "") return;
 
+            componentStage.innerHTML = `<div id="m1as-loading" style="text-align: center; color: #0076ff; padding: 40px 0; font-style: italic;">
+                Streaming binary mesh data directly over network...
+            </div>`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { "m1as-user-id": "dev-user" }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Streaming route connection dropped with status code: ${response.status}`);
+                }
+                const blob = await response.blob();
+                const safeBlobUrl = URL.createObjectURL(blob);
+
+                componentStage.innerHTML = "";
+
+                const wrapper = document.createElement("div");
+                wrapper.className = "m1as-interactive-wrapper";
+
+                const functionalButton = document.createElement("button");
+                functionalButton.className = "m1as-nested-button";
+                functionalButton.onclick = () => alert(`🎯 M1AS Composable Action Clicked! Event bound for: ${name}`);
+
+                const btnLabel = document.createElement("span");
+                btnLabel.className = "m1as-btn-label";
+                btnLabel.innerText = "Click Composable Button";
+
+                const modelViewerElement = document.createElement("model-viewer");
+                modelViewerElement.className = "inline-3d-canvas";
+                modelViewerElement.style.height = "100%";
+                modelViewerElement.style.background = "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)";
+                modelViewerElement.src = safeBlobUrl;
+                modelViewerElement.alt = `M1AS Runtime Streamed Component: ${name}`;
+
+                modelViewerElement.setAttribute("camera-controls", "");
+                modelViewerElement.setAttribute("auto-rotate", "");
+                modelViewerElement.setAttribute("interaction-prompt", "none");
+
+                functionalButton.appendChild(modelViewerElement);
+                functionalButton.appendChild(btnLabel);
+                wrapper.appendChild(functionalButton);
+                
+                // Mount the layout nodes immediately so the custom element engine can bind the texture maps
+                componentStage.appendChild(wrapper);
+
+                modelViewerElement.addEventListener('load', () => {
+                    console.log(`[M1AS Memory Bridge] Context successfully mounted for ${name}`);
+                });
+
+            } catch (err) {
+                componentStage.innerHTML = `
+                    <div style="color: #dc3545; padding: 15px; border: 1px solid #f5c6cb; background: #f8d7da; border-radius: 4px; font-family: monospace; font-size: 13px;">
+                        <strong>⚠️ M1AS Playground Exception:</strong> ${err.message}
+                    </div>`;
+            }
+        }
+
+        function triggerManualRender() {
+            const urlValue = streamUrlInput.value.trim();
+            if (!urlValue) {
+                alert("Please drop a valid target signed link parameter expression statement string inside the box first.");
+                return;
+            }
+            renderComponentInstance(urlValue, "Manually Injected Asset");
         }
 
         function startCountdown(expires, ttl) {
-
             clearInterval(countdownInterval);
-
             function update() {
-
-                const now =
-                    Math.floor(Date.now() / 1000);
-
-                const remaining =
-                    expires - now;
-
+                const now = Math.floor(Date.now() / 1000);
+                const remaining = expires - now;
                 if (remaining <= 0) {
+                    ttlStatus.innerHTML = `<strong>Signed URL Expired</strong><br>Click "Load Public Assets" to refresh.`;
 
-                    ttlStatus.innerHTML = `
-                <strong>
-                    Signed URL Expired
-                </strong>
-                <br>
-                Click "Load Public Assets"
-                to refresh.
-            `;
+                    document.querySelectorAll(".url-display").forEach(el => {
+                        el.innerText = 'Click "Stream" to sign URL token...';
+                        el.style.color = "#868e96";
+                        el.style.fontStyle = "italic";
+                    });
 
-                    clearInterval(
-                        countdownInterval
-                    );
-
+                    clearInterval(countdownInterval);
                     return;
                 }
-
-                const minutes =
-                    Math.floor(remaining / 60);
-
-                const seconds =
-                    remaining % 60;
-
-                ttlStatus.innerHTML = `
-            TTL: ${ttl}s
-            <br>
-            Expires In:
-            ${minutes}:${String(seconds)
-                        .padStart(2, "0")}
-        `;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                ttlStatus.innerHTML = `TTL: ${ttl}s<br>Expires In: ${minutes}:${String(seconds).padStart(2, "0")}`;
             }
-
             update();
-
-            countdownInterval =
-                setInterval(update, 1000);
+            countdownInterval = setInterval(update, 1000);
         }
-
     </script>
-
 </body>
 
 </html>

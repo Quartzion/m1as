@@ -131,12 +131,16 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
       expires
     );
 
+    // 💎 Precision Add: Prevent the signature verification channel from hogging a browser port mapping slot
+    res.setHeader("Connection", "close");
+
     res.json({
       url: `/assets/${asset.id}/file/signed?expires=${expires}&sig=${sig}`,
       expires,
       ttl
     });
   }
+
 
 
   // --------------------
@@ -363,7 +367,7 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // SIGNED FILE DELIVERY
   // --------------------
   async getFileSigned(req: any, res: any): Promise<void> {
-    const { id } = req.params;
+    const { id } = req.params;  
     const { expires, sig } = req.query;
 
     if (!expires || !sig) {
@@ -388,6 +392,17 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
     const asset = await this.options.assetManager.get(id);
     if (!asset) throw new PublicError("Not_Found", 404, "NOT_FOUND");
     if (asset.visibility === "private") throw new PublicError("Access_Denied", 403, "ACCESS_DENIED");
+
+    // getFileSigned method before parseRangeHeader to Inject CORS Clearances into File Delivery Routing.
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Range, m1as-user-id, Authorization");
+
+    if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+    }
+
 
     // Parse byte range header
     const streamRange = parseRangeHeader(req.headers.range);
@@ -422,12 +437,15 @@ export class ExpressAssetAdapter implements AssetHttpAdapter {
   // GET PUBLIC FILES
   // -------------------
   async getPublicAssets(req: any, res: any): Promise<void> {
+    // 💎 Precision Add: Forcibly release the browser socket loop back to the connection pool
+    res.setHeader("Connection", "close");
 
     const assets =
       await this.options.assetManager.getPublicAssets();
 
     res.json(assets);
   }
+
 
   // --------------------
   // DELETE

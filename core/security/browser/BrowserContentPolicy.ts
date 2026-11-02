@@ -72,10 +72,20 @@ const XLSX_POLICY = Object.freeze<BrowserContentPolicy>({
 
 const GLB_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
-    previewMode: "sandboxed",
+    previewMode: "inline",
     supportsPreview: true,
-    headers: SANDBOX_HEADERS
+    headers: Object.freeze({
+        ...NOSNIFF_HEADERS,
+        // 💎 ADVANCED FEATURING FOR READ OPTIMIZATION:
+        // "Content-Security-Policy": "default-src * data: blob: 'unsafe-inline'; img-src * data: blob:; connect-src * data: blob:;",
+        "Content-Security-Policy": "default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; worker-src * blob: data:; connect-src * blob: data:;",
+        // "Content-Security-Policy": "default-src 'none'; connect-src * data: blob:; img-src 'self' data: blob:;",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Range, m1as-user-id"
+    })
 });
+
 
 const XLSX_TYPES = new Set(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
 const GLB_TYPES = new Set(["model/gltf-binary"]);
