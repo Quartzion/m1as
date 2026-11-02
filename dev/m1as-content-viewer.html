@@ -56,7 +56,7 @@
         }
 
         .playground-panel {
-            background: #f0f0f0;
+            background: #170e7c;
             border: 2px dashed #999;
             padding: 20px;
             margin: 20px 0;
@@ -153,8 +153,8 @@
     <h1>m1as Streaming Test</h1>
 
     <div class="playground-panel">
-        <h3>🚀 Composable Component Simulation Area</h3>
-        <p style="font-size: 13px; color: #555; margin-top: -8px;">
+        <h3 style="color: #cbea30;">🚀 Composable Component Simulation Area</h3>
+        <p style="font-size: 13px; color: #f6f1f1; margin-top: -8px;">
             Simulates a React component consuming your headless stream payload URL. Click "Stream" below to capture a
             signed URL, or paste one manually to verify rendering.
         </p>
@@ -192,11 +192,57 @@
         document.getElementById("loadAssets").addEventListener("click", loadAssets);
         renderComponentBtn.addEventListener("click", triggerManualRender);
 
+                // 💎 NEW: Automated Engine Hydration on asset registry load
+        async function autoHydrateEngine(assets) {
+            const firstGlb = assets.find(asset => 
+                (asset.mimeType || "").toLowerCase().trim() === "model/gltf-binary" || 
+                (asset.displayName || "").toLowerCase().trim().endsWith(".glb")
+            );
+            
+            // If a 3D asset exists, silently fetch its preview block once to unpack the vendor engine
+            if (firstGlb) {
+                try {
+                    const response = await fetch(`${API_BASE}/assets/${firstGlb.id}/preview`, {
+                        headers: { "m1as-user-id": "dev-user" }
+                    });
+                    if (response.ok) {
+                        const cleanHtmlPayload = await response.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(cleanHtmlPayload, "text/html");
+                        const embeddedScripts = doc.querySelectorAll("script[type='module']");
+                        let vendorScriptSource = "";
+
+                        embeddedScripts.forEach(script => {
+                            if (!script.src && script.textContent.includes("litPropertyMetadata")) {
+                                vendorScriptSource = script.textContent;
+                            }
+                        });
+
+                        if (vendorScriptSource) {
+                            const parentEngineTag = document.getElementById("m1as-runtime-engine");
+                            if (parentEngineTag && !parentEngineTag.textContent) {
+                                const newInlineScript = document.createElement("script");
+                                newInlineScript.type = "module";
+                                newInlineScript.textContent = vendorScriptSource;
+                                document.head.appendChild(newInlineScript);
+                                console.log("M1AS Core: 3D Render Engine pre-hydrated for stream safety.");
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Pre-hydration engine lock skipped: ", e.message);
+                }
+            }
+        }
+
         async function loadAssets() {
             assetList.innerHTML = "Loading...";
             const response = await fetch(`${API_BASE}/assets/public`);
             const assets = await response.json();
             assetList.innerHTML = "";
+
+            // 💎 Trigger the engine unpack block silently on page data load
+            autoHydrateEngine(assets);
 
             assets.forEach(asset => {
                 const card = document.createElement("div");
@@ -240,6 +286,7 @@
                 assetList.appendChild(card);
             });
         }
+
         async function loadPreview(asset) {
             viewer.innerHTML = "Loading Preview...";
             const response = await fetch(`${API_BASE}/assets/${asset.id}/preview`, {
@@ -250,37 +297,7 @@
                 return;
             }
             const cleanHtmlPayload = await response.text();
-
-            // 💎 LOCAL ENGINE BRIDGE: Extract your native vendor script securely
-            try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(cleanHtmlPayload, "text/html");
-
-                // Find your internal vendor module script text
-                const embeddedScripts = doc.querySelectorAll("script[type='module']");
-                let vendorScriptSource = "";
-
-                embeddedScripts.forEach(script => {
-                    if (!script.src && script.textContent.includes("litPropertyMetadata")) {
-                        vendorScriptSource = script.textContent;
-                    }
-                });
-
-                if (vendorScriptSource) {
-                    const parentEngineTag = document.getElementById("m1as-runtime-engine");
-                    if (parentEngineTag && !parentEngineTag.textContent) {
-                        // Execute the vendor engine locally on the parent layout frame
-                        const newInlineScript = document.createElement("script");
-                        newInlineScript.type = "module";
-                        newInlineScript.textContent = vendorScriptSource;
-                        document.head.appendChild(newInlineScript);
-                        console.log("M1AS Core: 3D Render Engine hydrated natively from local preview layout.");
-                    }
-                }
-            } catch (e) {
-                console.warn("Engine extraction skipped: ", e.message);
-            }
-
+            
             const iframe = document.createElement("iframe");
             iframe.sandbox = "allow-scripts";
             iframe.style.width = "100%";
@@ -307,7 +324,6 @@
                 cardUrlDisplay.style.fontStyle = "normal";
             }
 
-            // 💎 PRECISION FIX: Force case-insensitive evaluation across both type mappings
             const currentMime = (asset.mimeType || "").toLowerCase().trim();
             const currentName = (asset.displayName || "").toLowerCase().trim();
 
@@ -318,7 +334,6 @@
                 return;
             }
 
-            // Normal fallbacks for standard media formats remain unchanged below
             viewer.innerHTML = "";
             if (asset.mimeType.startsWith("video/")) {
                 const video = document.createElement("video");
@@ -339,8 +354,7 @@
                 viewer.appendChild(link);
             }
         }
-
-        // 💎 RESTORED & OPTIMIZED: Renders 3D geometries inside functional DOM tags natively
+        // 💎 FIXED: Mounts nodes prior to engine parsing to prevent blob pointer revocation
         async function renderComponentInstance(url, name = "Streamed Asset") {
             if (!url || url.trim() === "") return;
 
@@ -363,19 +377,29 @@
 
                 const wrapper = document.createElement("div");
                 wrapper.className = "m1as-interactive-wrapper";
+                // Style transparency on the outer component layout block
+                wrapper.style.background = "transparent";
+                wrapper.style.border = "none";
+                wrapper.style.boxShadow = "none";
 
                 const functionalButton = document.createElement("button");
                 functionalButton.className = "m1as-nested-button";
+                // 💎 FLOATING TRANSPARENCY: Strips default button background colors completely
+                functionalButton.style.background = "transparent";
+                functionalButton.style.border = "none";
                 functionalButton.onclick = () => alert(`🎯 M1AS Composable Action Clicked! Event bound for: ${name}`);
 
                 const btnLabel = document.createElement("span");
                 btnLabel.className = "m1as-btn-label";
+                btnLabel.style.background = "rgba(0, 118, 255, 0.9)"; // Make label pop on floating transparency
                 btnLabel.innerText = "Click Composable Button";
 
                 const modelViewerElement = document.createElement("model-viewer");
                 modelViewerElement.className = "inline-3d-canvas";
                 modelViewerElement.style.height = "100%";
-                modelViewerElement.style.background = "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)";
+                // 💎 NO BACKGROUND: Setting background to transparent forces seamless overlaying behaviors like an SVG
+                modelViewerElement.style.background = "transparent";
+                modelViewerElement.style.border = "none";
                 modelViewerElement.src = safeBlobUrl;
                 modelViewerElement.alt = `M1AS Runtime Streamed Component: ${name}`;
 
@@ -387,7 +411,6 @@
                 functionalButton.appendChild(btnLabel);
                 wrapper.appendChild(functionalButton);
                 
-                // Mount the layout nodes immediately so the custom element engine can bind the texture maps
                 componentStage.appendChild(wrapper);
 
                 modelViewerElement.addEventListener('load', () => {
@@ -439,3 +462,4 @@
 </body>
 
 </html>
+
