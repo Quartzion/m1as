@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-export type FaceAssetType = 'color' | 'image' | 'video' | 'audio' | 'preview';
+export type FaceAssetType = 'color' | 'image' | 'video' | 'audio' | 'preview' | 'svg-preview' | 'glb-snapshot';
 
 export interface M1ASEngineOptions {
   userId?: string;
@@ -316,20 +316,125 @@ export class M1ASFaceLayerEngine {
     texture.needsUpdate = true;
   }
 
+  private async renderGlbSnapshotToTexture(glbBlobUrl: string, label = '3D Model'): Promise<THREE.CanvasTexture> {
+    const size = 512;
+    const offscreenRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+    offscreenRenderer.setSize(size, size, false);
 
-    private async renderPreviewToTexture(previewUrl: string): Promise<THREE.Texture> {
+    const snapScene = new THREE.Scene();
+    snapScene.background = new THREE.Color(0x0f172a);
+
+    const snapCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+    snapCamera.position.set(2.1, 1.7, 2.7);
+    snapCamera.lookAt(0, 0, 0);
+
+    snapScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.3);
+    keyLight.position.set(4, 7, 5);
+    snapScene.add(keyLight);
+
+    try {
+      const gltf = await new Promise<{ scene: THREE.Group }>((resolve, reject) => {
+        new GLTFLoader().load(glbBlobUrl, resolve, undefined, reject);
+      });
+
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const boxSize = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(boxSize.x, boxSize.y, boxSize.z) || 1;
+      model.position.sub(center);
+      model.scale.setScalar(1.65 / maxDim);
+      snapScene.add(model);
+
+      offscreenRenderer.render(snapScene, snapCamera);
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = size;
+      outCanvas.height = size;
+      const ctx = outCanvas.getContext('2d')!;
+      ctx.drawImage(offscreenRenderer.domElement, 0, 0, size, size);
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+      ctx.fillRect(0, size - 48, size, 48);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`3D SNAPSHOT • ${label}`, size / 2, size - 18);
+
+      const tex = new THREE.CanvasTexture(outCanvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.needsUpdate = true;
+      return tex;
+    } finally {
+      offscreenRenderer.dispose();
+    }
+  }
+
+  private async renderSvgStringToTexture(svgString: string): Promise<THREE.CanvasTexture> {
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
+    const svgEl = svgDoc.querySelector('svg');
+    if (!svgEl) throw new Error('Invalid SVG markup');
+
+    svgEl.querySelectorAll('foreignObject').forEach((fo) => fo.remove());
+    svgEl.setAttribute('xmlns', 'http://w3.org');
+
+    const viewBox = svgEl.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
+    const rawW = parseFloat(svgEl.getAttribute('width') || '0');
+    const rawH = parseFloat(svgEl.getAttribute('height') || '0');
+    const w = Math.max(512, Math.round(rawW || (viewBox && viewBox[2]) || 1024));
+    const h = Math.max(512, Math.round(rawH || (viewBox && viewBox[3]) || 1024));
+    svgEl.setAttribute('width', String(w));
+    svgEl.setAttribute('height', String(h));
+
+    const cleanSvg = new XMLSerializer().serializeToString(svgEl);
+    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(cleanSvg);
+
+    return await new Promise<THREE.CanvasTexture>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1024, 1024);
+
+        const scale = Math.min(940 / (img.width || w), 940 / (img.height || h));
+        const drawW = (img.width || w) * scale;
+        const drawH = (img.height || h) * scale;
+        ctx.drawImage(img, (1024 - drawW) / 2, (1024 - drawH) / 2, drawW, drawH);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.flipY = false;
+        tex.needsUpdate = true;
+        resolve(tex);
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+
+  private async renderPreviewToTexture(previewUrl: string, forceSvg = false): Promise<THREE.Texture> {
     const res = await fetch(previewUrl, {
       headers: { 'm1as-user-id': this.userId },
     });
     if (!res.ok) throw new Error(`Preview fetch failed (${res.status})`);
     const html = await res.text();
 
+    if (forceSvg && html.trim().startsWith('<svg')) {
+      return await this.renderSvgStringToTexture(html);
+    }
+
     const parser = new DOMParser();
     let doc: Document = parser.parseFromString(html, 'text/html');
     let tempIframe: HTMLIFrameElement | null = null;
 
     try {
-      // Only mount an offscreen iframe if client-side JS rendering (like Mermaid .mmd) is required
       if (doc.querySelector('.mermaid') && !doc.querySelector('svg')) {
         tempIframe = document.createElement('iframe');
         tempIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
@@ -343,10 +448,7 @@ export class M1ASFaceLayerEngine {
           tempIframe!.onload = () => {
             const iframeDoc = tempIframe!.contentDocument;
             if (!iframeDoc) return resolve();
-
-            if (iframeDoc.querySelector('svg')) {
-              return setTimeout(resolve, 100);
-            }
+            if (iframeDoc.querySelector('svg')) return setTimeout(resolve, 100);
 
             const observer = new MutationObserver(() => {
               if (iframeDoc.querySelector('svg')) {
@@ -355,14 +457,11 @@ export class M1ASFaceLayerEngine {
               }
             });
             observer.observe(iframeDoc.body, { childList: true, subtree: true });
-
             setTimeout(() => {
               observer.disconnect();
               resolve();
             }, 3000);
           };
-
-          // Attach onload BEFORE setting srcdoc and appending so the event is never missed
           tempIframe!.srcdoc = html;
           document.body.appendChild(tempIframe!);
         });
@@ -372,24 +471,16 @@ export class M1ASFaceLayerEngine {
         }
       }
 
+      // 1. Embedded <svg> (.svg or rendered Mermaid .mmd)
       const svgEl = doc.querySelector('svg');
-
-      // 1. Pure Vector SVG Path (.svg and rendered Mermaid .mmd)
       if (svgEl) {
-        svgEl.querySelectorAll('foreignObject').forEach((fo) => fo.remove());
-        svgEl.setAttribute('xmlns', 'http://w3.org');
+        return await this.renderSvgStringToTexture(new XMLSerializer().serializeToString(svgEl));
+      }
 
-        const bbox = svgEl.getBoundingClientRect();
-        const viewBox = svgEl.getAttribute('viewBox')?.split(/\s+/).map(Number);
-        const w = Math.max(512, Math.round(bbox.width || viewBox?.[2] || 1024));
-        const h = Math.max(512, Math.round(bbox.height || viewBox?.[3] || 1024));
-        svgEl.setAttribute('width', String(w));
-        svgEl.setAttribute('height', String(h));
-
-        const svgString = new XMLSerializer().serializeToString(svgEl);
-        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
-
-        return await new Promise<THREE.Texture>((resolve, reject) => {
+      // 2. Embedded <img src="data:image/svg+xml...">
+      const embeddedSvgImg = doc.querySelector('img[src^="data:image/svg+xml"]') as HTMLImageElement | null;
+      if (embeddedSvgImg) {
+        return await new Promise<THREE.CanvasTexture>((resolve, reject) => {
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
@@ -398,25 +489,80 @@ export class M1ASFaceLayerEngine {
             const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, 1024, 1024);
-
-            const scale = Math.min(940 / img.width, 940 / img.height);
-            const drawW = img.width * scale;
-            const drawH = img.height * scale;
+            const scale = Math.min(940 / (img.width || 512), 940 / (img.height || 512));
+            const drawW = (img.width || 512) * scale;
+            const drawH = (img.height || 512) * scale;
             ctx.drawImage(img, (1024 - drawW) / 2, (1024 - drawH) / 2, drawW, drawH);
 
-            const canvasTex = new THREE.CanvasTexture(canvas);
-            canvasTex.colorSpace = THREE.SRGBColorSpace;
-            canvasTex.flipY = false;
-            canvasTex.needsUpdate = true;
-            console.log('[M1ASFaceLayerEngine] Vector SVG/Mermaid snapshot painted to face.');
-            resolve(canvasTex);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.flipY = false;
+            tex.needsUpdate = true;
+            resolve(tex);
           };
-          img.onerror = (err) => reject(err);
-          img.src = dataUrl;
+          img.onerror = reject;
+          img.src = embeddedSvgImg.src;
         });
       }
 
-      // 2. Native Untainted 2D Canvas Document Snapshot (.md, .html, .docx, .xlsx)
+      // 3. Spreadsheet Table Grid Renderer (.xlsx)
+      const tableEl = doc.querySelector('table');
+      if (tableEl) {
+        const size = 1024;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#065f46';
+        ctx.fillRect(0, 0, size, 64);
+        ctx.fillStyle = '#ecfdf5';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText('M1AS SPREADSHEET SNAPSHOT (.XLSX)', 32, 40);
+
+        const rows = Array.from(tableEl.querySelectorAll('tr')).slice(0, 20);
+        const maxCols = Math.min(6, Math.max(1, ...rows.map((r) => r.querySelectorAll('th, td').length)));
+        const startX = 32;
+        const startY = 88;
+        const colW = (size - 64) / maxCols;
+        const rowH = 44;
+
+        rows.forEach((tr, rIdx) => {
+          const y = startY + rIdx * rowH;
+          if (y + rowH > size - 24) return;
+
+          ctx.fillStyle = rIdx === 0 ? '#e2e8f0' : rIdx % 2 === 0 ? '#f8fafc' : '#ffffff';
+          ctx.fillRect(startX, y, size - 64, rowH);
+
+          const cells = Array.from(tr.querySelectorAll('th, td')).slice(0, maxCols);
+          for (let cIdx = 0; cIdx < maxCols; cIdx++) {
+            const x = startX + cIdx * colW;
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.strokeRect(x, y, colW, rowH);
+
+            const cellText = (cells[cIdx]?.textContent || '').trim();
+            ctx.fillStyle = rIdx === 0 ? '#0f172a' : '#334155';
+            ctx.font = rIdx === 0 ? 'bold 17px sans-serif' : '16px sans-serif';
+
+            let display = cellText;
+            while (display.length > 1 && ctx.measureText(display).width > colW - 16) {
+              display = display.slice(0, -1);
+            }
+            if (display !== cellText && display.length > 2) display = display.slice(0, -2) + '…';
+            ctx.fillText(display, x + 8, y + 28);
+          }
+        });
+
+        const canvasTex = new THREE.CanvasTexture(canvas);
+        canvasTex.colorSpace = THREE.SRGBColorSpace;
+        canvasTex.flipY = false;
+        canvasTex.needsUpdate = true;
+        return canvasTex;
+      }
+
+      // 4. Document Text Snapshot (.md, .docx, .html)
       const size = 1024;
       const canvas = document.createElement('canvas');
       canvas.width = size;
@@ -473,14 +619,11 @@ export class M1ASFaceLayerEngine {
       canvasTex.colorSpace = THREE.SRGBColorSpace;
       canvasTex.flipY = false;
       canvasTex.needsUpdate = true;
-      console.log('[M1ASFaceLayerEngine] Document snapshot painted to face.');
       return canvasTex;
     } finally {
       tempIframe?.remove();
     }
   }
-
-
 
   public async updateFace(slotIndex: number, type: FaceAssetType, value: string, label?: string): Promise<void> {
     const mat = this.materials[slotIndex];
@@ -500,8 +643,8 @@ export class M1ASFaceLayerEngine {
     if (!value) return;
 
     try {
-      if (type === 'preview') {
-        const tex = await this.renderPreviewToTexture(value);
+      if (type === 'preview' || type === 'svg-preview') {
+        const tex = await this.renderPreviewToTexture(value, type === 'svg-preview');
         mat.map = tex;
         mat.needsUpdate = true;
         return;
@@ -511,97 +654,104 @@ export class M1ASFaceLayerEngine {
         ? value
         : await this.fetchAsBlobUrl(slotIndex, value);
 
-if (type === 'audio') {
-const audioTex = await this.bindAudioFace(slotIndex, safeUrl, label || 'M1AS Audio Stream');
-mat.map = audioTex;
-mat.needsUpdate = true;
-} else if (type === 'image') {
-const loader = new THREE.TextureLoader();
-loader.load(safeUrl, (tex) => {
-tex.colorSpace = THREE.SRGBColorSpace;
-tex.flipY = false;
-mat.map = tex;
-mat.needsUpdate = true;
-});
-} else if (type === 'video') {
-const video = document.createElement('video');
-video.src = safeUrl;
-video.loop = true;
-video.muted = true;
-video.playsInline = true;
-await video.play();
-const videoTex = new THREE.VideoTexture(video);
-videoTex.colorSpace = THREE.SRGBColorSpace;
-videoTex.flipY = false;
-mat.map = videoTex;
-mat.needsUpdate = true;
-this.videoElements.set(slotIndex, video);
-}
-} catch (err) {
-console.error(`[M1ASFaceLayerEngine] Failed to bind ${type} to slot ${slotIndex}:`, err);
-}
-}
-public cleanupSlot(slotIndex: number): void {
-const mat = this.materials[slotIndex];
-if (!mat) return;
-if (mat.map) {
-mat.map.dispose();
-mat.map = null;
-}
-if (this.videoElements.has(slotIndex)) {
-const video = this.videoElements.get(slotIndex)!;
-video.pause();
-video.src = '';
-video.load();
-this.videoElements.delete(slotIndex);
-}
-if (this.audioSlots.has(slotIndex)) {
-const slot = this.audioSlots.get(slotIndex)!;
-slot.audio.pause();
-slot.audio.src = '';
-slot.audio.load();
-this.audioSlots.delete(slotIndex);
-}
-if (this.blobUrls.has(slotIndex)) {
-URL.revokeObjectURL(this.blobUrls.get(slotIndex)!);
-this.blobUrls.delete(slotIndex);
-}
-mat.color.setHex(0xffffff);
-mat.needsUpdate = true;
-}
-public resize(): void {
-const width = this.canvas.clientWidth;
-const height = this.canvas.clientHeight;
-if (!width || !height) return;
-this.camera.aspect = width / height;
-this.camera.updateProjectionMatrix();
-this.renderer.setSize(width, height, false);
-}
-private animate(): void {
-this.frameId = requestAnimationFrame(this.animate);
-if (this.modelRoot && this.autoRotate) {
-this.modelRoot.rotation.y += 0.005;
-}
-for (const slot of this.audioSlots.values()) {
-if (!slot.audio.paused) {
-this.renderAudioFrame(slot);
-}
-}
-this.controls.update();
-this.renderer.render(this.scene, this.camera);
-}
-public destroy(): void {
-if (this.frameId !== null) cancelAnimationFrame(this.frameId);
-this.canvas.removeEventListener('pointerdown', this.onPointerDown);
-this.canvas.removeEventListener('pointerup', this.onPointerUp);
-for (let i = 0; i < this.materials.length; i++) {
-this.cleanupSlot(i);
-}
-this.materials.forEach((m) => m.dispose());
-if (this.audioCtx) {
-this.audioCtx.close().catch(() => {});
-}
-this.controls.dispose();
-this.renderer.dispose();
-}
+      if (type === 'glb-snapshot') {
+        const snapTex = await this.renderGlbSnapshotToTexture(safeUrl, label || '3D Model');
+        mat.map = snapTex;
+        mat.needsUpdate = true;
+      } else if (type === 'audio') {
+        const audioTex = await this.bindAudioFace(slotIndex, safeUrl, label || 'M1AS Audio Stream');
+        mat.map = audioTex;
+        mat.needsUpdate = true;
+      } else if (type === 'image') {
+        const loader = new THREE.TextureLoader();
+        loader.load(safeUrl, (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.flipY = false;
+          mat.map = tex;
+          mat.needsUpdate = true;
+        });
+      } else if (type === 'video') {
+        const video = document.createElement('video');
+        video.src = safeUrl;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        await video.play();
+
+        const videoTex = new THREE.VideoTexture(video);
+        videoTex.colorSpace = THREE.SRGBColorSpace;
+        videoTex.flipY = false;
+
+        mat.map = videoTex;
+        mat.needsUpdate = true;
+        this.videoElements.set(slotIndex, video);
+      }
+    } catch (err) {
+      console.error(`[M1ASFaceLayerEngine] Failed to bind ${type} to slot ${slotIndex}:`, err);
+    }
+  }
+
+  public cleanupSlot(slotIndex: number): void {
+    const mat = this.materials[slotIndex];
+    if (!mat) return;
+    if (mat.map) {
+      mat.map.dispose();
+      mat.map = null;
+    }
+    if (this.videoElements.has(slotIndex)) {
+      const video = this.videoElements.get(slotIndex)!;
+      video.pause();
+      video.src = '';
+      video.load();
+      this.videoElements.delete(slotIndex);
+    }
+    if (this.audioSlots.has(slotIndex)) {
+      const slot = this.audioSlots.get(slotIndex)!;
+      slot.audio.pause();
+      slot.audio.src = '';
+      slot.audio.load();
+      this.audioSlots.delete(slotIndex);
+    }
+    if (this.blobUrls.has(slotIndex)) {
+      URL.revokeObjectURL(this.blobUrls.get(slotIndex)!);
+      this.blobUrls.delete(slotIndex);
+    }
+    mat.color.setHex(0xffffff);
+    mat.needsUpdate = true;
+  }
+  public resize(): void {
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    if (!width || !height) return;
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height, false);
+  }
+  private animate(): void {
+    this.frameId = requestAnimationFrame(this.animate);
+    if (this.modelRoot && this.autoRotate) {
+      this.modelRoot.rotation.y += 0.005;
+    }
+    for (const slot of this.audioSlots.values()) {
+      if (!slot.audio.paused) {
+        this.renderAudioFrame(slot);
+      }
+    }
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+  public destroy(): void {
+    if (this.frameId !== null) cancelAnimationFrame(this.frameId);
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    for (let i = 0; i < this.materials.length; i++) {
+      this.cleanupSlot(i);
+    }
+    this.materials.forEach((m) => m.dispose());
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(() => { });
+    }
+    this.controls.dispose();
+    this.renderer.dispose();
+  }
 }

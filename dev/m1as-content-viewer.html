@@ -415,36 +415,47 @@
                             return;
                         }
 
+                        const isGlb =
+                            mime === "model/gltf-binary" ||
+                            (asset.displayName || "").toLowerCase().endsWith(".glb");
+                        const isSvg =
+                            mime === "image/svg+xml" ||
+                            (asset.displayName || "").toLowerCase().endsWith(".svg");
+
                         let targetUrl;
                         let assetType;
 
-if (isStreamTexture && asset.capabilities?.canStream) {
-    targetUrl = await getSignedAssetUrl(asset);
-    if (mime.startsWith("video/")) assetType = "video";
-    else if (mime.startsWith("audio/")) assetType = "audio";
-    else assetType = "image";
-} else {
-    targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
-    assetType = "preview";
-}
-
-await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl, asset.displayName);
-
+                        if (isGlb && asset.capabilities?.canStream) {
+                            targetUrl = await getSignedAssetUrl(asset);
+                            assetType = "glb-snapshot";
+                        } else if (isStreamTexture && asset.capabilities?.canStream) {
+                            targetUrl = await getSignedAssetUrl(asset);
+                            if (mime.startsWith("video/")) assetType = "video";
+                            else if (mime.startsWith("audio/")) assetType = "audio";
+                            else assetType = "image";
+                        } else if (isSvg) {
+                            targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
+                            assetType = "svg-preview";
+                        } else {
+                            targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
+                            assetType = "preview";
+                        }
 
                         const insType = document.getElementById(`ins-type-${slotIdx}`);
                         const insVal = document.getElementById(`ins-val-${slotIdx}`);
                         const insPicker = document.getElementById(`ins-picker-${slotIdx}`);
                         if (insType && insVal) {
-                            insType.value = assetType === "preview" ? "image" : assetType;
+                            insType.value = (assetType === "video") ? "video" : "image";
                             insVal.value = targetUrl;
                             if (insPicker) insPicker.style.display = "none";
                         }
 
-                        await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl);
+                        await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl, asset.displayName);
                     });
                 }
 
                 assetList.appendChild(card);
+
             });
         }
 
