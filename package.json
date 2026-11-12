@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build:vendor": "npx tsc core/utils/scripts/build-vendor.ts --target es2022 --module esnext --moduleResolution node && node core/utils/scripts/build-vendor.js && node -e \"fs.rmSync('core/utils/scripts/build-vendor.js', {force: true})\"",
-    "build": "npm run build:vendor && tsc",
+    "build:viewer": "esbuild ./client/M1ASFaceLayerEngine.ts --bundle --format=esm --minify --outfile=dev/m1as-face-layer-engine.js",
+    "build": "npm run build:vendor && build:viewer && tsc",
     "m1asLocalRun": "node dist/server/m1asServer.js"
   },
   "devDependencies": {
@@ -12,6 +13,8 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^25.0.3",
     "@types/sanitize-html": "^2.16.1",
+    "@types/three": "^0.183.1",
+    "esbuild": "^0.28.2",
     "mongodb": "^7.0.0",
     "mongoose": "^9.0.2",
     "typescript": "^5.9.3"
@@ -24,6 +27,7 @@
     "mammoth": "^1.13.0",
     "multer": "^2.0.2",
     "sanitize-html": "^2.17.6",
+    "three": "^0.183.2",
     "xlsx": "^0.18.5"
   }
 }

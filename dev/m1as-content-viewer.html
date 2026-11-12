@@ -4,14 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>m1as media Browser & Composable Component Playground</title>
+    <title>m1as Media Browser & Composable Component Playground</title>
 
-    <!-- styling -->
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
             background: #fdfdfd;
+            color: #212529;
         }
 
         #assetList {
@@ -24,19 +28,37 @@
         .asset-card {
             border: 1px solid #ccc;
             padding: 12px;
-            width: 290px;
-            /* 🎨 Widened slightly to host token strings comfortably */
-            cursor: pointer;
+            width: 300px;
             background: #fff;
             border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
         }
 
         .asset-card:hover {
-            background: #f5f5f5;
+            background: #f8f9fa;
         }
 
-        /* 🎨 Wrap-around container handles massive signature parameters safely */
+        .card-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .card-actions button,
+        .card-actions select {
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+            cursor: pointer;
+            background: #fff;
+        }
+
+        .card-actions button:hover {
+            background: #e9ecef;
+        }
+
         .url-display {
             background: #f8f9fa;
             border: 1px solid #e9ecef;
@@ -51,17 +73,13 @@
             min-height: 28px;
         }
 
-        video {
-            margin-top: 20px;
-        }
-
         .playground-panel {
             background: #170e7c;
             border: 2px dashed #999;
             padding: 20px;
             margin: 20px 0;
             border-radius: 8px;
-            max-width: 640px;
+            width: 100%;
         }
 
         .playground-form {
@@ -95,57 +113,135 @@
 
         .inline-3d-canvas {
             width: 100%;
-            height: 400px;
-            background: linear-gradient(135deg, #dfdfdf 0%, #bebebe 100%);
-            border-radius: 6px;
-            border: 1px solid #bbb;
+            height: 100%;
             display: block;
         }
 
-        /* 🎨 NEW: Interactive layout wrappers for the 3D Asset Playground */
         .m1as-interactive-wrapper {
             position: relative;
-            display: inline-block;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
             width: 100%;
-            max-width: 340px;
-            height: 240px;
+            background: #fff;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #dee2e6;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 16px;
         }
 
-        .m1as-nested-button {
-            width: 100%;
-            height: 100%;
-            background: #ffffff;
-            border: none;
-            cursor: pointer;
-            position: relative;
+        .m1as-interactive-wrapper.compact-media {
+            max-width: 520px;
+            height: 320px;
             padding: 0;
+            background: #000;
+        }
+
+        .m1as-stage-surface {
+            flex: 1;
+            min-width: 300px;
+            height: 400px;
+            background: #1a1a1a;
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .m1as-interactive-wrapper.compact-media .m1as-stage-surface {
+            height: 100%;
+            border-radius: 0;
         }
 
         .m1as-btn-label {
             position: absolute;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.75);
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 118, 255, 0.9);
             color: #fff;
-            padding: 4px 12px;
+            padding: 5px 12px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: bold;
             letter-spacing: 0.5px;
             text-transform: uppercase;
             z-index: 10;
-            pointer-events: none;
+            cursor: pointer;
+            border: none;
+        }
+
+        .m1as-btn-label:hover {
+            background: rgba(0, 90, 200, 1);
+        }
+
+        .m1as-visualization-inspector {
+            width: 360px;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            color: #f5f5f5;
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .inspector-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #38bdf8;
+            text-transform: uppercase;
+            border-bottom: 1px solid #3c3c3c;
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .face-slot-row {
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+
+        .face-label {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #d4d4d4;
+        }
+
+        .control-flex {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .m1as-select {
+            background: #3c3c3c;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-size: 11px;
+            padding: 4px 6px;
+        }
+
+        .m1as-input-txt {
+            flex: 1;
+            min-width: 0;
+            background: #3c3c3c;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-size: 11px;
+            padding: 4px 6px;
         }
     </style>
 
-    <!-- 💎 FIX: Official production build of the 3D element engine replaces the hanging, broken domain scripts -->
     <script type="module" id="m1as-runtime-engine"></script>
-
 </head>
 
 <body>
@@ -153,10 +249,9 @@
     <h1>m1as Streaming Test</h1>
 
     <div class="playground-panel">
-        <h3 style="color: #cbea30;">🚀 Composable Component Simulation Area</h3>
-        <p style="font-size: 13px; color: #f6f1f1; margin-top: -8px;">
-            Simulates a React component consuming your headless stream payload URL. Click "Stream" below to capture a
-            signed URL, or paste one manually to verify rendering.
+        <h3 style="color: #cbea30; margin-top: 0;">🚀 Composable Component Simulation Area</h3>
+        <p style="font-size: 13px; color: #f6f1f1; margin-top: -6px;">
+            Click <strong>Stream</strong> on any asset to render it below, or click <strong>Sign URL</strong> to copy a signed stream token for a 3D cube face.
         </p>
         <div class="playground-form">
             <input type="text" id="streamUrlInput" class="playground-input"
@@ -164,17 +259,15 @@
             <button id="renderComponentBtn" class="playground-btn">Render Component</button>
         </div>
         <div id="componentStage">
-            <div style="text-align: center; color: #777; padding: 40px 0; font-style: italic;">
+            <div style="text-align: center; color: #bbb; padding: 40px 0; font-style: italic;">
                 Stage empty. Awaiting signed asset target string link...
             </div>
         </div>
     </div>
 
-    <button id="loadAssets">
-        Load Public Assets
-    </button>
+    <button id="loadAssets" class="playground-btn">Load Public Assets</button>
 
-    <div id="ttlStatus"></div>
+    <div id="ttlStatus" style="margin-top: 10px; font-size: 13px;"></div>
     <div id="viewer"></div>
     <div id="assetList"></div>
 
@@ -187,52 +280,64 @@
         const renderComponentBtn = document.getElementById("renderComponentBtn");
         const componentStage = document.getElementById("componentStage");
 
-        let countdownInterval;
+        let countdownInterval = null;
+        let activeFaceEngine = null;
 
         document.getElementById("loadAssets").addEventListener("click", loadAssets);
         renderComponentBtn.addEventListener("click", triggerManualRender);
 
-                // 💎 NEW: Automated Engine Hydration on asset registry load
         async function autoHydrateEngine(assets) {
-            const firstGlb = assets.find(asset => 
-                (asset.mimeType || "").toLowerCase().trim() === "model/gltf-binary" || 
+            const firstGlb = assets.find(asset =>
+                (asset.mimeType || "").toLowerCase().trim() === "model/gltf-binary" ||
                 (asset.displayName || "").toLowerCase().trim().endsWith(".glb")
             );
-            
-            // If a 3D asset exists, silently fetch its preview block once to unpack the vendor engine
-            if (firstGlb) {
-                try {
-                    const response = await fetch(`${API_BASE}/assets/${firstGlb.id}/preview`, {
-                        headers: { "m1as-user-id": "dev-user" }
-                    });
-                    if (response.ok) {
-                        const cleanHtmlPayload = await response.text();
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(cleanHtmlPayload, "text/html");
-                        const embeddedScripts = doc.querySelectorAll("script[type='module']");
-                        let vendorScriptSource = "";
+            if (!firstGlb) return;
 
-                        embeddedScripts.forEach(script => {
-                            if (!script.src && script.textContent.includes("litPropertyMetadata")) {
-                                vendorScriptSource = script.textContent;
-                            }
-                        });
+            try {
+                const response = await fetch(`${API_BASE}/assets/${firstGlb.id}/preview`, {
+                    headers: { "m1as-user-id": "dev-user" }
+                });
+                if (!response.ok) return;
 
-                        if (vendorScriptSource) {
-                            const parentEngineTag = document.getElementById("m1as-runtime-engine");
-                            if (parentEngineTag && !parentEngineTag.textContent) {
-                                const newInlineScript = document.createElement("script");
-                                newInlineScript.type = "module";
-                                newInlineScript.textContent = vendorScriptSource;
-                                document.head.appendChild(newInlineScript);
-                                console.log("M1AS Core: 3D Render Engine pre-hydrated for stream safety.");
-                            }
-                        }
+                const cleanHtmlPayload = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(cleanHtmlPayload, "text/html");
+                const embeddedScripts = doc.querySelectorAll("script[type='module']");
+                let vendorScriptSource = "";
+
+                embeddedScripts.forEach(script => {
+                    if (!script.src && script.textContent.includes("litPropertyMetadata")) {
+                        vendorScriptSource = script.textContent;
                     }
-                } catch (e) {
-                    console.warn("Pre-hydration engine lock skipped: ", e.message);
+                });
+
+                if (vendorScriptSource) {
+                    const parentEngineTag = document.getElementById("m1as-runtime-engine");
+                    if (parentEngineTag && !parentEngineTag.textContent) {
+                        const newInlineScript = document.createElement("script");
+                        newInlineScript.type = "module";
+                        newInlineScript.textContent = vendorScriptSource;
+                        document.head.appendChild(newInlineScript);
+                    }
                 }
+            } catch (e) {
+                console.warn("Pre-hydration engine skipped:", e.message);
             }
+        }
+
+        async function getSignedAssetUrl(asset) {
+            const response = await fetch(`${API_BASE}/assets/${asset.id}/signed`);
+            const signed = await response.json();
+            startCountdown(signed.expires, signed.ttl);
+
+            const signedUrl = `${API_BASE}${signed.url}`;
+            const cardUrlDisplay = document.getElementById(`url-display-${asset.id}`);
+            if (cardUrlDisplay) {
+                cardUrlDisplay.innerText = signedUrl;
+                cardUrlDisplay.style.color = "#2b8a3e";
+                cardUrlDisplay.style.fontStyle = "normal";
+            }
+            return signedUrl;
         }
 
         async function loadAssets() {
@@ -241,46 +346,85 @@
             const assets = await response.json();
             assetList.innerHTML = "";
 
-            // 💎 Trigger the engine unpack block silently on page data load
             autoHydrateEngine(assets);
 
             assets.forEach(asset => {
                 const card = document.createElement("div");
                 card.className = "asset-card";
 
-                const previewButton = asset.capabilities?.canPreview
-                    ? `<button class="preview-btn">Preview</button>`
-                    : "";
+                const mime = (asset.mimeType || "").toLowerCase().trim();
+                const isTextureCompatible =
+                    mime.startsWith("image/") ||
+                    mime.startsWith("video/");
 
-                const streamButton = asset.capabilities?.canStream
-                    ? `<button class="stream-btn">Stream</button>`
+                const previewButton = asset.capabilities?.canPreview ? `<button class="preview-btn">Preview</button>` : "";
+                const streamButton = asset.capabilities?.canStream ? `<button class="stream-btn">Stream</button>` : "";
+                const signCopyButton = asset.capabilities?.canStream ? `<button class="sign-btn">Sign URL</button>` : "";
+                const faceAssignSelect = (asset.capabilities?.canStream && isTextureCompatible)
+                    ? `<select class="face-assign-sel" title="Apply directly to active 3D cube face">
+                           <option value="">Paint Face...</option>
+                           <option value="0">Face 0 (Right)</option>
+                           <option value="1">Face 1 (Left)</option>
+                           <option value="2">Face 2 (Top)</option>
+                           <option value="3">Face 3 (Bottom)</option>
+                           <option value="4">Face 4 (Front)</option>
+                           <option value="5">Face 5 (Back)</option>
+                       </select>`
                     : "";
 
                 card.innerHTML = `
-                    <strong>${asset.displayName}</strong>
-                    <br>
-                    <span style="font-size: 12px; color: #6c757d;">${asset.mimeType}</span>
-                    <br>
-                    <span style="font-size: 12px; color: #6c757d;">${(asset.size / 1024 / 1024).toFixed(2)} MB</span>
-                    <br>
-                    
+                    <strong>${asset.displayName}</strong><br>
+                    <span style="font-size: 12px; color: #6c757d;">${asset.mimeType}</span><br>
+                    <span style="font-size: 12px; color: #6c757d;">${(asset.size / 1024 / 1024).toFixed(2)} MB</span><br>
                     <span style="font-size: 11px; font-weight: bold; display: block; margin-top: 6px;">Active Signed URL:</span>
-                    <span class="url-display" id="url-display-${asset.id}" style="color: #868e96; font-style: italic;">
-                        Click "Stream" to sign URL token...
-                    </span>
-
-                    ${previewButton}
-                    ${streamButton}
+                    <span class="url-display" id="url-display-${asset.id}" style="color: #868e96; font-style: italic;">Click "Stream" or "Sign URL"...</span>
+                    <div class="card-actions">
+                        ${previewButton}
+                        ${streamButton}
+                        ${signCopyButton}
+                        ${faceAssignSelect}
+                    </div>
                 `;
 
                 const streamBtn = card.querySelector(".stream-btn");
-                if (streamBtn) {
-                    streamBtn.addEventListener("click", () => loadAsset(asset));
-                }
+                if (streamBtn) streamBtn.addEventListener("click", () => loadAsset(asset));
 
                 const previewBtn = card.querySelector(".preview-btn");
-                if (previewBtn) {
-                    previewBtn.addEventListener("click", () => loadPreview(asset));
+                if (previewBtn) previewBtn.addEventListener("click", () => loadPreview(asset));
+
+                const signBtn = card.querySelector(".sign-btn");
+                if (signBtn) {
+                    signBtn.addEventListener("click", async () => {
+                        const signedUrl = await getSignedAssetUrl(asset);
+                        await navigator.clipboard?.writeText(signedUrl).catch(() => {});
+                        signBtn.innerText = "Copied!";
+                        setTimeout(() => { signBtn.innerText = "Sign URL"; }, 1500);
+                    });
+                }
+
+                const faceSel = card.querySelector(".face-assign-sel");
+                if (faceSel) {
+                    faceSel.addEventListener("change", async () => {
+                        const slotIdx = Number(faceSel.value);
+                        faceSel.value = "";
+                        if (!activeFaceEngine) {
+                            alert("Stream a 3D .glb cube into the playground first!");
+                            return;
+                        }
+                        const signedUrl = await getSignedAssetUrl(asset);
+                        const assetType = mime.startsWith("video/") ? "video" : "image";
+
+                        const insType = document.getElementById(`ins-type-${slotIdx}`);
+                        const insVal = document.getElementById(`ins-val-${slotIdx}`);
+                        const insPicker = document.getElementById(`ins-picker-${slotIdx}`);
+                        if (insType && insVal) {
+                            insType.value = assetType;
+                            insVal.value = signedUrl;
+                            if (insPicker) insPicker.style.display = "none";
+                        }
+
+                        await activeFaceEngine.updateFace(slotIdx, assetType, signedUrl);
+                    });
                 }
 
                 assetList.appendChild(card);
@@ -297,7 +441,6 @@
                 return;
             }
             const cleanHtmlPayload = await response.text();
-            
             const iframe = document.createElement("iframe");
             iframe.sandbox = "allow-scripts";
             iframe.style.width = "100%";
@@ -310,134 +453,172 @@
             viewer.appendChild(iframe);
         }
 
-                async function loadAsset(asset) {
-            const response = await fetch(`${API_BASE}/assets/${asset.id}/signed`);
-            const signed = await response.json();
-
-            startCountdown(signed.expires, signed.ttl);
-            const signedUrl = `${API_BASE}${signed.url}`;
-
-            const cardUrlDisplay = document.getElementById(`url-display-${asset.id}`);
-            if (cardUrlDisplay) {
-                cardUrlDisplay.innerText = signedUrl;
-                cardUrlDisplay.style.color = "#2b8a3e"; 
-                cardUrlDisplay.style.fontStyle = "normal";
-            }
-
-            // Clean checking parameters
+        async function loadAsset(asset) {
+            const signedUrl = await getSignedAssetUrl(asset);
             const currentMime = (asset.mimeType || "").toLowerCase().trim();
-            const currentName = (asset.displayName || "").toLowerCase().trim();
-
-            // 💎 UNIFIED MULTI-FORMAT PLAYGROUND ROUTER
-            // Every stream-eligible asset is now fast-tracked straight to the Composable Component Staging area
             streamUrlInput.value = signedUrl;
             renderComponentInstance(signedUrl, asset.displayName, currentMime);
-            
-            viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated ${currentMime.split('/')[1].toUpperCase()} stream payload securely piped to Component Playground!</p>`;
+            viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated secure payload stream targeted directly to Component Playground!</p>`;
+        }
+        function buildFaceInspectorPanel(onSlotChange) {
+            const inspector = document.createElement("div");
+            inspector.className = "m1as-visualization-inspector";
+            inspector.innerHTML = `<div class="inspector-title"><span>Visualization Layer Face Maps</span></div>`;
+
+            const faceNames = [
+                "Right (0)",
+                "Left (1)",
+                "Top (2)",
+                "Bottom (3)",
+                "Front (4)",
+                "Back (5)"
+            ];
+
+            faceNames.forEach((fName, idx) => {
+                const row = document.createElement("div");
+                row.className = "face-slot-row";
+                row.innerHTML = `
+                    <div class="face-label">${fName}</div>
+                    <div class="control-flex">
+                        <select id="ins-type-${idx}" class="m1as-select">
+                            <option value="color">Color</option>
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                        </select>
+                        <input type="color" id="ins-picker-${idx}" value="#333333" style="width:28px; height:24px; padding:0; border:none; background:none; cursor:pointer;" />
+                        <input type="text" id="ins-val-${idx}" class="m1as-input-txt" value="#333333" placeholder="#333333" />
+                    </div>
+                `;
+                inspector.appendChild(row);
+
+                const typeSel = row.querySelector(`#ins-type-${idx}`);
+                const colorPicker = row.querySelector(`#ins-picker-${idx}`);
+                const valIn = row.querySelector(`#ins-val-${idx}`);
+
+                const triggerUpdate = () => {
+                    const type = typeSel.value;
+                    const val = valIn.value.trim();
+                    if (val) onSlotChange(idx, type, val);
+                };
+
+                typeSel.addEventListener("change", () => {
+                    if (typeSel.value === "color") {
+                        colorPicker.style.display = "inline-block";
+                        valIn.value = colorPicker.value.toUpperCase();
+                        valIn.placeholder = "#333333";
+                        triggerUpdate();
+                    } else {
+                        colorPicker.style.display = "none";
+                        valIn.value = "";
+                        valIn.placeholder = "Paste M1AS signed URL & press Enter...";
+                    }
+                });
+
+                colorPicker.addEventListener("input", (e) => {
+                    valIn.value = e.target.value.toUpperCase();
+                    triggerUpdate();
+                });
+
+                valIn.addEventListener("change", triggerUpdate);
+            });
+
+            return inspector;
         }
 
-        // 💎 UNIVERSAL RUNTIME FACTORY: Captures raw bytes for ALL safe formats and creates nested native canvas nodes
         async function renderComponentInstance(url, name = "Streamed Asset", explicitMime = "") {
             if (!url || url.trim() === "") return;
 
-            componentStage.innerHTML = `<div id="m1as-loading" style="text-align: center; color: #0076ff; padding: 40px 0; font-style: italic;">
-                Streaming binary payload data directly over network...
-            </div>`;
+            if (activeFaceEngine) {
+                activeFaceEngine.destroy();
+                activeFaceEngine = null;
+            }
+
+            componentStage.innerHTML = `<div id="m1as-loading" style="text-align: center; color: #38bdf8; padding: 40px 0; font-style: italic;">Streaming binary payload data directly over network...</div>`;
 
             try {
-                const response = await fetch(url, {
-                    headers: { "m1as-user-id": "dev-user" }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Streaming route connection dropped with status code: ${response.status}`);
-                }
+                const response = await fetch(url, { headers: { "m1as-user-id": "dev-user" } });
+                if (!response.ok) throw new Error(`Streaming dropped status code: ${response.status}`);
+
                 const blob = await response.blob();
-                
-                // Deduce target mime classification from binary blob signature if route meta was blank
                 const mime = explicitMime || blob.type.toLowerCase().trim();
                 const safeBlobUrl = URL.createObjectURL(blob);
 
                 componentStage.innerHTML = "";
 
-                // Maintain transparent, composable button structural tree wraps
                 const wrapper = document.createElement("div");
                 wrapper.className = "m1as-interactive-wrapper";
-                wrapper.style.background = "transparent";
-                wrapper.style.border = "none";
-                wrapper.style.boxShadow = "none";
 
-                const functionalButton = document.createElement("button");
-                functionalButton.className = "m1as-nested-button";
-                functionalButton.style.background = "transparent";
-                functionalButton.style.border = "none";
-                functionalButton.onclick = () => alert(`🎯 M1AS Composable Action! Event executed cleanly for [${mime}] element: ${name}`);
+                const stageSurface = document.createElement("div");
+                stageSurface.className = "m1as-stage-surface";
 
-                const btnLabel = document.createElement("span");
-                btnLabel.className = "m1as-btn-label";
-                btnLabel.style.background = "rgba(0, 118, 255, 0.9)";
-                btnLabel.innerText = "Click Composable Button";
+                const actionBadge = document.createElement("button");
+                actionBadge.type = "button";
+                actionBadge.className = "m1as-btn-label";
+                actionBadge.innerText = "Composable Action";
+                actionBadge.onclick = () => alert(`🎯 M1AS Composable Action! Event executed cleanly for [${mime}] element: ${name}`);
 
-                // 💎 FACTORY NODE DETERMINATION SWITCH
                 let renderNode;
 
                 if (mime === "model/gltf-binary" || name.toLowerCase().endsWith(".glb")) {
-                    // 3D Objects
-                    renderNode = document.createElement("model-viewer");
-                    renderNode.setAttribute("camera-controls", "");
-                    renderNode.setAttribute("auto-rotate", "");
-                    renderNode.setAttribute("interaction-prompt", "none");
-                } 
-                else if (mime.startsWith("video/")) {
-                    // Video Streams (.mp4, etc)
-                    renderNode = document.createElement("video");
-                    renderNode.autoplay = true;
-                    renderNode.muted = true; // Essential to permit unconditional autoplay cycles in modern browsers
-                    renderNode.loop = true;
-                    renderNode.controls = false; // Kept hidden to emphasize seamless button surface integration
-                } 
-                else if (mime.startsWith("audio/")) {
-                    // Audio Tracks (.mp3, .wav)
-                    renderNode = document.createElement("audio");
-                    renderNode.autoplay = true;
-                    renderNode.controls = true; // Visible audio timeline UI inside the container box
-                    renderNode.style.position = "absolute";
-                    renderNode.style.top = "50%";
-                    renderNode.style.transform = "translateY(-50%)";
-                    renderNode.style.padding = "0 10px";
-                } 
-                else if (mime === "application/pdf") {
-                    // Document Assets (.pdf embedded directly into layout view)
-                    renderNode = document.createElement("embed");
-                    renderNode.type = "application/pdf";
-                } 
-                else if (mime.startsWith("image/") || mime === "image/svg+xml") {
-                    // Static Graphic Files and Vectors (.png, .jpg, .webp, .svg)
-                    renderNode = document.createElement("img");
-                    renderNode.alt = `M1AS Composable Image: ${name}`;
-                } 
-                else {
-                    // Plaintext Fallbacks (.txt, .md source logging)
-                    renderNode = document.createElement("iframe");
-                    renderNode.sandbox = "allow-scripts";
+                    const { M1ASFaceLayerEngine } = await import('./m1as-face-layer-engine.js');
+
+                    renderNode = document.createElement("canvas");
+                    renderNode.className = "inline-3d-canvas";
+
+                    stageSurface.appendChild(renderNode);
+                    stageSurface.appendChild(actionBadge);
+                    wrapper.appendChild(stageSurface);
+
+                    const inspector = buildFaceInspectorPanel((slotIdx, type, val) => {
+                        activeFaceEngine?.updateFace(slotIdx, type, val);
+                    });
+                    wrapper.appendChild(inspector);
+                    componentStage.appendChild(wrapper);
+
+                    activeFaceEngine = new M1ASFaceLayerEngine(renderNode, safeBlobUrl);
+                } else {
+                    wrapper.classList.add("compact-media");
+
+                    if (mime.startsWith("video/")) {
+                        renderNode = document.createElement("video");
+                        renderNode.autoplay = true;
+                        renderNode.muted = true;
+                        renderNode.controls = true;
+                        renderNode.loop = true;
+                        renderNode.playsInline = true;
+                        renderNode.src = safeBlobUrl;
+                    } else if (mime.startsWith("audio/")) {
+                        renderNode = document.createElement("audio");
+                        renderNode.autoplay = true;
+                        renderNode.controls = true;
+                        renderNode.src = safeBlobUrl;
+                        renderNode.style.position = "absolute";
+                        renderNode.style.top = "50%";
+                        renderNode.style.left = "16px";
+                        renderNode.style.width = "calc(100% - 32px)";
+                        renderNode.style.transform = "translateY(-50%)";
+                    } else if (mime === "application/pdf") {
+                        renderNode = document.createElement("embed");
+                        renderNode.type = "application/pdf";
+                        renderNode.src = safeBlobUrl;
+                    } else if (mime.startsWith("image/") || mime === "image/svg+xml") {
+                        renderNode = document.createElement("img");
+                        renderNode.style.objectFit = "contain";
+                        renderNode.src = safeBlobUrl;
+                    } else {
+                        renderNode = document.createElement("iframe");
+                        renderNode.sandbox = "allow-scripts";
+                        renderNode.src = safeBlobUrl;
+                    }
+
+                    renderNode.className = "inline-3d-canvas";
+                    stageSurface.appendChild(renderNode);
+                    stageSurface.appendChild(actionBadge);
+                    wrapper.appendChild(stageSurface);
+                    componentStage.appendChild(wrapper);
                 }
 
-                // Inject universal layout canvas classes and source allocations
-                renderNode.className = "inline-3d-canvas"; // Reuses standard sizing class parameters cleanly
-                renderNode.style.width = "100%";
-                renderNode.style.height = "100%";
-                renderNode.style.background = "transparent";
-                renderNode.style.border = "none";
-                renderNode.src = safeBlobUrl;
-
-                // Mount tree node elements
-                functionalButton.appendChild(renderNode);
-                functionalButton.appendChild(btnLabel);
-                wrapper.appendChild(functionalButton);
-                componentStage.appendChild(wrapper);
-
-                console.log(`[M1AS Multi-Bridge] Local memory pointer successfully generated for MIME: ${mime}`);
-
+                console.log(`[M1AS Multi-Bridge] Local memory pointer generated for MIME: ${mime}`);
             } catch (err) {
                 componentStage.innerHTML = `
                     <div style="color: #dc3545; padding: 15px; border: 1px solid #f5c6cb; background: #f8d7da; border-radius: 4px; font-family: monospace; font-size: 13px;">
@@ -449,7 +630,7 @@
         function triggerManualRender() {
             const urlValue = streamUrlInput.value.trim();
             if (!urlValue) {
-                alert("Please drop a valid target signed link parameter expression statement string inside the box first.");
+                alert("Please drop a valid target signed link parameter string inside the box first.");
                 return;
             }
             renderComponentInstance(urlValue, "Manually Injected Asset");
@@ -462,13 +643,11 @@
                 const remaining = expires - now;
                 if (remaining <= 0) {
                     ttlStatus.innerHTML = `<strong>Signed URL Expired</strong><br>Click "Load Public Assets" to refresh.`;
-
                     document.querySelectorAll(".url-display").forEach(el => {
-                        el.innerText = 'Click "Stream" to sign URL token...';
+                        el.innerText = 'Click "Stream" or "Sign URL"...';
                         el.style.color = "#868e96";
                         el.style.fontStyle = "italic";
                     });
-
                     clearInterval(countdownInterval);
                     return;
                 }
@@ -483,4 +662,3 @@
 </body>
 
 </html>
-
