@@ -12,10 +12,6 @@ const NOSNIFF_HEADERS = Object.freeze({
     "X-Content-Type-Options": "nosniff"
 });
 
-// const SANDBOX_HEADERS = Object.freeze({
-//     ...NOSNIFF_HEADERS,
-//     "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; sandbox allow-scripts;"
-// });
 const SANDBOX_HEADERS = Object.freeze({
     ...NOSNIFF_HEADERS,
     "Content-Security-Policy": "default-src 'self' https://cdn.jsdelivr.net; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://cdn.jsdelivr.net; worker-src 'self' blob: data:; sandbox allow-scripts allow-same-origin;"
@@ -37,7 +33,7 @@ const HTML_POLICY = Object.freeze<BrowserContentPolicy>({
 
 const SVG_POLICY = Object.freeze<BrowserContentPolicy>({
     disposition: "inline",
-    previewMode: "sandboxed",
+    previewMode: "sandboxed", 
     supportsPreview: true,
     headers: SANDBOX_HEADERS
 });
@@ -76,10 +72,7 @@ const GLB_POLICY = Object.freeze<BrowserContentPolicy>({
     supportsPreview: true,
     headers: Object.freeze({
         ...NOSNIFF_HEADERS,
-        // 💎 ADVANCED FEATURING FOR READ OPTIMIZATION:
-        // "Content-Security-Policy": "default-src * data: blob: 'unsafe-inline'; img-src * data: blob:; connect-src * data: blob:;",
         "Content-Security-Policy": "default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; worker-src * blob: data:; connect-src * blob: data:;",
-        // "Content-Security-Policy": "default-src 'none'; connect-src * data: blob:; img-src 'self' data: blob:;",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
         "Access-Control-Allow-Headers": "Range, m1as-user-id"

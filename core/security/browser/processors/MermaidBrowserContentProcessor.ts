@@ -37,8 +37,10 @@ ${cleanDiagram}
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
     mermaid.initialize({ 
       startOnLoad: true, 
-      securityLevel: 'loose', 
-      theme: 'default' 
+      securityLevel: 'loose',
+      theme: 'default'
+      htmlLabels: false,
+      flowchart: { htmlLabels: false }  
     });
   </script>
 </body>

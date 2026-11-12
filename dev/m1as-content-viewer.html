@@ -251,7 +251,8 @@
     <div class="playground-panel">
         <h3 style="color: #cbea30; margin-top: 0;">🚀 Composable Component Simulation Area</h3>
         <p style="font-size: 13px; color: #f6f1f1; margin-top: -6px;">
-            Click <strong>Stream</strong> on any asset to render it below, or click <strong>Sign URL</strong> to copy a signed stream token for a 3D cube face.
+            Click <strong>Stream</strong> on any asset to render it below, or click <strong>Sign URL</strong> to copy a
+            signed stream token for a 3D cube face.
         </p>
         <div class="playground-form">
             <input type="text" id="streamUrlInput" class="playground-input"
@@ -340,7 +341,7 @@
             return signedUrl;
         }
 
-        async function loadAssets() {
+         async function loadAssets() {
             assetList.innerHTML = "Loading...";
             const response = await fetch(`${API_BASE}/assets/public`);
             const assets = await response.json();
@@ -353,14 +354,16 @@
                 card.className = "asset-card";
 
                 const mime = (asset.mimeType || "").toLowerCase().trim();
-                const isTextureCompatible =
-                    mime.startsWith("image/") ||
-                    mime.startsWith("video/");
+                const isStreamTexture = 
+                    mime.startsWith("image/") || 
+                    mime.startsWith("video/") ||
+                    mime.startsWith("audio/");
+                const canPaintToFace = (asset.capabilities?.canStream && isStreamTexture) || asset.capabilities?.canPreview;
 
                 const previewButton = asset.capabilities?.canPreview ? `<button class="preview-btn">Preview</button>` : "";
                 const streamButton = asset.capabilities?.canStream ? `<button class="stream-btn">Stream</button>` : "";
                 const signCopyButton = asset.capabilities?.canStream ? `<button class="sign-btn">Sign URL</button>` : "";
-                const faceAssignSelect = (asset.capabilities?.canStream && isTextureCompatible)
+                const faceAssignSelect = canPaintToFace
                     ? `<select class="face-assign-sel" title="Apply directly to active 3D cube face">
                            <option value="">Paint Face...</option>
                            <option value="0">Face 0 (Right)</option>
@@ -411,19 +414,33 @@
                             alert("Stream a 3D .glb cube into the playground first!");
                             return;
                         }
-                        const signedUrl = await getSignedAssetUrl(asset);
-                        const assetType = mime.startsWith("video/") ? "video" : "image";
+
+                        let targetUrl;
+                        let assetType;
+
+if (isStreamTexture && asset.capabilities?.canStream) {
+    targetUrl = await getSignedAssetUrl(asset);
+    if (mime.startsWith("video/")) assetType = "video";
+    else if (mime.startsWith("audio/")) assetType = "audio";
+    else assetType = "image";
+} else {
+    targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
+    assetType = "preview";
+}
+
+await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl, asset.displayName);
+
 
                         const insType = document.getElementById(`ins-type-${slotIdx}`);
                         const insVal = document.getElementById(`ins-val-${slotIdx}`);
                         const insPicker = document.getElementById(`ins-picker-${slotIdx}`);
                         if (insType && insVal) {
-                            insType.value = assetType;
-                            insVal.value = signedUrl;
+                            insType.value = assetType === "preview" ? "image" : assetType;
+                            insVal.value = targetUrl;
                             if (insPicker) insPicker.style.display = "none";
                         }
 
-                        await activeFaceEngine.updateFace(slotIdx, assetType, signedUrl);
+                        await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl);
                     });
                 }
 
