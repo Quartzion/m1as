@@ -341,7 +341,7 @@
             return signedUrl;
         }
 
-         async function loadAssets() {
+        async function loadAssets() {
             assetList.innerHTML = "Loading...";
             const response = await fetch(`${API_BASE}/assets/public`);
             const assets = await response.json();
@@ -354,8 +354,8 @@
                 card.className = "asset-card";
 
                 const mime = (asset.mimeType || "").toLowerCase().trim();
-                const isStreamTexture = 
-                    mime.startsWith("image/") || 
+                const isStreamTexture =
+                    mime.startsWith("image/") ||
                     mime.startsWith("video/") ||
                     mime.startsWith("audio/");
                 const canPaintToFace = (asset.capabilities?.canStream && isStreamTexture) || asset.capabilities?.canPreview;
@@ -399,7 +399,7 @@
                 if (signBtn) {
                     signBtn.addEventListener("click", async () => {
                         const signedUrl = await getSignedAssetUrl(asset);
-                        await navigator.clipboard?.writeText(signedUrl).catch(() => {});
+                        await navigator.clipboard?.writeText(signedUrl).catch(() => { });
                         signBtn.innerText = "Copied!";
                         setTimeout(() => { signBtn.innerText = "Sign URL"; }, 1500);
                     });
@@ -428,14 +428,16 @@
                         if (isGlb && asset.capabilities?.canStream) {
                             targetUrl = await getSignedAssetUrl(asset);
                             assetType = "glb-snapshot";
+                        } else if (isSvg) {
+                            targetUrl = asset.capabilities?.canStream
+                                ? await getSignedAssetUrl(asset)
+                                : `${API_BASE}/assets/${asset.id}/preview`;
+                            assetType = "svg-preview";
                         } else if (isStreamTexture && asset.capabilities?.canStream) {
                             targetUrl = await getSignedAssetUrl(asset);
                             if (mime.startsWith("video/")) assetType = "video";
                             else if (mime.startsWith("audio/")) assetType = "audio";
                             else assetType = "image";
-                        } else if (isSvg) {
-                            targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
-                            assetType = "svg-preview";
                         } else {
                             targetUrl = `${API_BASE}/assets/${asset.id}/preview`;
                             assetType = "preview";
@@ -445,11 +447,11 @@
                         const insVal = document.getElementById(`ins-val-${slotIdx}`);
                         const insPicker = document.getElementById(`ins-picker-${slotIdx}`);
                         if (insType && insVal) {
-                            insType.value = (assetType === "video") ? "video" : "image";
+                            const supportedOptions = ["color", "image", "svg-preview", "video", "preview"];
+                            insType.value = supportedOptions.includes(assetType) ? assetType : "image";
                             insVal.value = targetUrl;
                             if (insPicker) insPicker.style.display = "none";
                         }
-
                         await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl, asset.displayName);
                     });
                 }
@@ -488,6 +490,33 @@
             renderComponentInstance(signedUrl, asset.displayName, currentMime);
             viewer.innerHTML = `<p style="color: green; font-weight: bold;">✅ Authenticated secure payload stream targeted directly to Component Playground!</p>`;
         }
+
+        function resolveManualAssetType(selectedType, urlOrValue) {
+            if (selectedType === "color" || selectedType === "video") {
+                return selectedType;
+            }
+
+            const clean = urlOrValue.toLowerCase().split("?")[0].split("#")[0];
+
+            if (clean.endsWith(".svg")) return "svg-preview";
+            if (clean.endsWith(".glb")) return "glb-snapshot";
+            if (
+                clean.endsWith("/preview") ||
+                clean.endsWith(".html") ||
+                clean.endsWith(".htm") ||
+                clean.endsWith(".xhtml") ||
+                clean.endsWith(".md") ||
+                clean.endsWith(".docx") ||
+                clean.endsWith(".xlsx") ||
+                clean.endsWith(".mmd")
+            ) {
+                return "preview";
+            }
+
+            return selectedType; // defaults to "image" for .png, .jpg, .webp, etc.
+        }
+
+
         function buildFaceInspectorPanel(onSlotChange) {
             const inspector = document.createElement("div");
             inspector.className = "m1as-visualization-inspector";
@@ -511,7 +540,9 @@
                         <select id="ins-type-${idx}" class="m1as-select">
                             <option value="color">Color</option>
                             <option value="image">Image</option>
+                            <option value="svg-preview">SVG Vector</option>
                             <option value="video">Video</option>
+                            <option value="preview">HTML / Doc</option>
                         </select>
                         <input type="color" id="ins-picker-${idx}" value="#333333" style="width:28px; height:24px; padding:0; border:none; background:none; cursor:pointer;" />
                         <input type="text" id="ins-val-${idx}" class="m1as-input-txt" value="#333333" placeholder="#333333" />
@@ -538,7 +569,7 @@
                     } else {
                         colorPicker.style.display = "none";
                         valIn.value = "";
-                        valIn.placeholder = "Paste M1AS signed URL & press Enter...";
+                        valIn.placeholder = "Paste M1AS URL & press Enter...";
                     }
                 });
 
@@ -552,6 +583,7 @@
 
             return inspector;
         }
+
 
         async function renderComponentInstance(url, name = "Streamed Asset", explicitMime = "") {
             if (!url || url.trim() === "") return;

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { toCanvas } from 'html-to-image';
+
 
 export type FaceAssetType = 'color' | 'image' | 'video' | 'audio' | 'preview' | 'svg-preview' | 'glb-snapshot';
 
@@ -196,11 +198,22 @@ export class M1ASFaceLayerEngine {
       headers: { 'm1as-user-id': this.userId },
     });
     if (!res.ok) throw new Error(`M1AS stream failed (${res.status})`);
-    const blob = await res.blob();
+    let blob = await res.blob();
+
+    // Ensure SVGs without explicit width/height attributes don't render at 0x0 in WebGL
+    if (blob.type.includes('svg') || signedUrl.toLowerCase().includes('.svg')) {
+      let svgText = await blob.text();
+      if (svgText.includes('<svg') && !/<svg[^>]*\bwidth\s*=/i.test(svgText)) {
+        svgText = svgText.replace(/<svg\b/i, '<svg width="1024" height="1024"');
+      }
+      blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    }
+
     const objectUrl = URL.createObjectURL(blob);
     this.blobUrls.set(slotIndex, objectUrl);
     return objectUrl;
   }
+
   private async bindAudioFace(slotIndex: number, blobUrl: string, label = 'Audio Track'): Promise<THREE.CanvasTexture> {
     const audio = document.createElement('audio');
     audio.src = blobUrl;
@@ -372,25 +385,69 @@ export class M1ASFaceLayerEngine {
     }
   }
 
-  private async renderSvgStringToTexture(svgString: string): Promise<THREE.CanvasTexture> {
+  private normalizeSvgMarkup(rawSvg: string): string {
+    // Unwrap PreviewRender.ts sandboxed <iframe src="data:image/svg+xml;base64,..."> if present
+    const b64Match = rawSvg.match(/src=["']data:image\/svg\+xml;base64,([^"']+)["']/i);
+    if (b64Match && b64Match[1]) {
+      rawSvg = atob(b64Match[1]);
+    }
+
     const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
-    const svgEl = svgDoc.querySelector('svg');
-    if (!svgEl) throw new Error('Invalid SVG markup');
+
+    // Parse as image/svg+xml so camelCase tags/attributes (viewBox, linearGradient, etc.) are preserved
+    let doc = parser.parseFromString(rawSvg, 'image/svg+xml');
+    let svgEl = doc.querySelector('svg');
+
+    // Fallback if input was an HTML wrapper containing an <svg>
+    if (!svgEl || doc.querySelector('parsererror')) {
+      const htmlDoc = parser.parseFromString(rawSvg, 'text/html');
+      svgEl = htmlDoc.querySelector('svg');
+      if (!svgEl) return rawSvg;
+    }
 
     svgEl.querySelectorAll('foreignObject').forEach((fo) => fo.remove());
     svgEl.setAttribute('xmlns', 'http://w3.org');
 
     const viewBox = svgEl.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
-    const rawW = parseFloat(svgEl.getAttribute('width') || '0');
-    const rawH = parseFloat(svgEl.getAttribute('height') || '0');
-    const w = Math.max(512, Math.round(rawW || (viewBox && viewBox[2]) || 1024));
-    const h = Math.max(512, Math.round(rawH || (viewBox && viewBox[3]) || 1024));
+    const rawWAttr = svgEl.getAttribute('width') || '';
+    const rawHAttr = svgEl.getAttribute('height') || '';
+    const rawW = rawWAttr.includes('%') ? 0 : parseFloat(rawWAttr);
+    const rawH = rawHAttr.includes('%') ? 0 : parseFloat(rawHAttr);
+    const vb = viewBox && viewBox.length >= 4 ? viewBox : null;
+    const vbW = vb ? vb[2] : 0;
+    const vbH = vb ? vb[3] : 0;
+
+    // Ensure viewBox exists before scaling width/height so vector shapes scale instead of clipping
+    if (!viewBox && rawW > 0 && rawH > 0) {
+      svgEl.setAttribute('viewBox', `0 0 ${rawW} ${rawH}`);
+    }
+
+    const w = Math.max(512, Math.round(rawW || vbW || 1024));
+    const h = Math.max(512, Math.round(rawH || vbH || 1024));
     svgEl.setAttribute('width', String(w));
     svgEl.setAttribute('height', String(h));
 
-    const cleanSvg = new XMLSerializer().serializeToString(svgEl);
-    const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(cleanSvg);
+    return new XMLSerializer().serializeToString(svgEl);
+  }
+
+
+  private async renderSvgOrBlobToTexture(urlOrSvg: string): Promise<THREE.CanvasTexture> {
+    let svgMarkup = '';
+
+    // Case 1: Input is a signed URL or /preview endpoint URL
+    if (urlOrSvg.startsWith('http://') || urlOrSvg.startsWith('https://') || urlOrSvg.startsWith('/')) {
+      const res = await fetch(urlOrSvg, { headers: { 'm1as-user-id': this.userId } });
+      if (!res.ok) throw new Error(`SVG fetch failed (${res.status})`);
+      svgMarkup = await res.text();
+    } else {
+      // Case 2: Input is already raw <svg>...</svg> markup
+      svgMarkup = urlOrSvg;
+    }
+
+    // Normalize namespace + width/height whether it came from a raw .svg stream or HTML wrapper
+    const cleanSvg = this.normalizeSvgMarkup(svgMarkup);
+    const svgBlob = new Blob([cleanSvg], { type: 'image/svg+xml;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(svgBlob);
 
     return await new Promise<THREE.CanvasTexture>((resolve, reject) => {
       const img = new Image();
@@ -402,10 +459,14 @@ export class M1ASFaceLayerEngine {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 1024, 1024);
 
-        const scale = Math.min(940 / (img.width || w), 940 / (img.height || h));
-        const drawW = (img.width || w) * scale;
-        const drawH = (img.height || h) * scale;
+        const natW = img.naturalWidth || img.width || 1024;
+        const natH = img.naturalHeight || img.height || 1024;
+        const scale = Math.min(940 / natW, 940 / natH);
+        const drawW = natW * scale;
+        const drawH = natH * scale;
         ctx.drawImage(img, (1024 - drawW) / 2, (1024 - drawH) / 2, drawW, drawH);
+
+        URL.revokeObjectURL(objectUrl);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.SRGBColorSpace;
@@ -413,229 +474,143 @@ export class M1ASFaceLayerEngine {
         tex.needsUpdate = true;
         resolve(tex);
       };
-      img.onerror = reject;
-      img.src = dataUrl;
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+      img.src = objectUrl;
     });
   }
 
 
-   private async renderPreviewToTexture(previewUrl: string, forceSvg = false): Promise<THREE.Texture> {
+  private async renderPreviewToTexture(previewUrl: string, forceSvg = false): Promise<THREE.Texture> {
+    if (forceSvg) {
+      return await this.renderSvgOrBlobToTexture(previewUrl);
+    }
+
     const res = await fetch(previewUrl, {
       headers: { 'm1as-user-id': this.userId },
     });
     if (!res.ok) throw new Error(`Preview fetch failed (${res.status})`);
     const html = await res.text();
 
-    // Direct SVG file (handles optional <?xml ...?> prolog or comments before <svg>)
-    if (forceSvg || (html.includes('<svg') && !html.includes('<html'))) {
-      return await this.renderSvgStringToTexture(html);
-    }
-
     const parser = new DOMParser();
-    let doc: Document = parser.parseFromString(html, 'text/html');
-    let tempIframe: HTMLIFrameElement | null = null;
+    const initialDoc = parser.parseFromString(html, 'text/html');
+
+    // Mount offscreen iframe so CSS, Mermaid (.mmd), and SheetJS (.xlsx) all render live
+    const tempIframe = document.createElement('iframe');
+    tempIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    tempIframe.style.position = 'fixed';
+    tempIframe.style.left = '-9999px';
+    tempIframe.style.top = '0';
+    tempIframe.style.width = '1024px';
+    tempIframe.style.height = '1024px';
+    tempIframe.style.border = 'none';
 
     try {
-      // Mount offscreen iframe when client-side scripts must run (Mermaid .mmd OR SheetJS .xlsx)
-      const needsClientExecution =
-        (doc.querySelector('.mermaid') && !doc.querySelector('svg')) ||
-        Boolean(doc.querySelector('#xlsx-data'));
+      await new Promise<void>((resolve) => {
+        tempIframe.onload = () => {
+          const iframeDoc = tempIframe.contentDocument;
+          if (!iframeDoc) return resolve();
 
-      if (needsClientExecution) {
-        tempIframe = document.createElement('iframe');
-        tempIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-        tempIframe.style.position = 'fixed';
-        tempIframe.style.left = '-9999px';
-        tempIframe.style.top = '0';
-        tempIframe.style.width = '1024px';
-        tempIframe.style.height = '1024px';
+          const isAsyncWidget =
+            Boolean(initialDoc.querySelector('.mermaid')) ||
+            Boolean(initialDoc.querySelector('#xlsx-data'));
 
-        await new Promise<void>((resolve) => {
-          tempIframe!.onload = () => {
-            const iframeDoc = tempIframe!.contentDocument;
-            if (!iframeDoc) return resolve();
+          if (!isAsyncWidget) {
+            return setTimeout(resolve, 150);
+          }
 
-            // Already rendered synchronously (e.g., inline XLSX script)
+          if (iframeDoc.querySelector('svg') || iframeDoc.querySelector('table')) {
+            return setTimeout(resolve, 120);
+          }
+
+          const observer = new MutationObserver(() => {
             if (iframeDoc.querySelector('svg') || iframeDoc.querySelector('table')) {
-              return setTimeout(resolve, 100);
-            }
-
-            const observer = new MutationObserver(() => {
-              if (iframeDoc.querySelector('svg') || iframeDoc.querySelector('table')) {
-                observer.disconnect();
-                setTimeout(resolve, 120);
-              }
-            });
-            observer.observe(iframeDoc.body, { childList: true, subtree: true });
-
-            setTimeout(() => {
               observer.disconnect();
-              resolve();
-            }, 3000);
-          };
-
-          tempIframe!.srcdoc = html;
-          document.body.appendChild(tempIframe!);
-        });
-
-        if (tempIframe.contentDocument) {
-          doc = tempIframe.contentDocument;
-        }
-      }
-
-      // 1. Embedded <svg> (.svg or rendered Mermaid .mmd)
-      const svgEl = doc.querySelector('svg');
-      if (svgEl) {
-        return await this.renderSvgStringToTexture(new XMLSerializer().serializeToString(svgEl));
-      }
-
-      // 2. Embedded <img src="data:image/svg+xml...">
-      const embeddedSvgImg = doc.querySelector('img[src^="data:image/svg+xml"]') as HTMLImageElement | null;
-      if (embeddedSvgImg) {
-        return await new Promise<THREE.CanvasTexture>((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1024;
-            const ctx = canvas.getContext('2d')!;
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 1024, 1024);
-            const scale = Math.min(940 / (img.width || 512), 940 / (img.height || 512));
-            const drawW = (img.width || 512) * scale;
-            const drawH = (img.height || 512) * scale;
-            ctx.drawImage(img, (1024 - drawW) / 2, (1024 - drawH) / 2, drawW, drawH);
-
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.colorSpace = THREE.SRGBColorSpace;
-            tex.flipY = false;
-            tex.needsUpdate = true;
-            resolve(tex);
-          };
-          img.onerror = reject;
-          img.src = embeddedSvgImg.src;
-        });
-      }
-
-      // 3. Spreadsheet Table Grid Renderer (.xlsx)
-      const tableEl = doc.querySelector('table');
-      if (tableEl) {
-        const size = 1024;
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d')!;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#065f46';
-        ctx.fillRect(0, 0, size, 64);
-        ctx.fillStyle = '#ecfdf5';
-        ctx.font = 'bold 22px sans-serif';
-        ctx.fillText('M1AS SPREADSHEET SNAPSHOT (.XLSX)', 32, 40);
-
-        const rows = Array.from(tableEl.querySelectorAll('tr')).slice(0, 20);
-        const maxCols = Math.min(6, Math.max(1, ...rows.map((r) => r.querySelectorAll('th, td').length)));
-        const startX = 32;
-        const startY = 88;
-        const colW = (size - 64) / maxCols;
-        const rowH = 44;
-
-        rows.forEach((tr, rIdx) => {
-          const y = startY + rIdx * rowH;
-          if (y + rowH > size - 24) return;
-
-          ctx.fillStyle = rIdx === 0 ? '#e2e8f0' : rIdx % 2 === 0 ? '#f8fafc' : '#ffffff';
-          ctx.fillRect(startX, y, size - 64, rowH);
-
-          const cells = Array.from(tr.querySelectorAll('th, td')).slice(0, maxCols);
-          for (let cIdx = 0; cIdx < maxCols; cIdx++) {
-            const x = startX + cIdx * colW;
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.strokeRect(x, y, colW, rowH);
-
-            const cellText = (cells[cIdx]?.textContent || '').trim();
-            ctx.fillStyle = rIdx === 0 ? '#0f172a' : '#334155';
-            ctx.font = rIdx === 0 ? 'bold 17px sans-serif' : '16px sans-serif';
-
-            let display = cellText;
-            while (display.length > 1 && ctx.measureText(display).width > colW - 16) {
-              display = display.slice(0, -1);
+              setTimeout(resolve, 120);
             }
-            if (display !== cellText && display.length > 2) display = display.slice(0, -2) + '…';
-            ctx.fillText(display, x + 8, y + 28);
-          }
+          });
+          observer.observe(iframeDoc.body, { childList: true, subtree: true });
+          setTimeout(() => {
+            observer.disconnect();
+            resolve();
+          }, 3000);
+        };
+
+        tempIframe.srcdoc = html;
+        document.body.appendChild(tempIframe);
+      });
+
+      const doc = tempIframe.contentDocument || initialDoc;
+
+      // 1. Only extract a standalone <svg> when the document is actually a Mermaid diagram or single-SVG wrapper
+      const isStandaloneSvg =
+        Boolean(initialDoc.querySelector('.mermaid')) ||
+        (doc.body?.children.length === 1 && doc.body.firstElementChild?.tagName.toLowerCase() === 'svg');
+
+      if (isStandaloneSvg) {
+        const svgEl = doc.querySelector('svg');
+        if (svgEl) {
+          return await this.renderSvgOrBlobToTexture(new XMLSerializer().serializeToString(svgEl));
+        }
+      }
+
+           // 2. Full CSS-Styled DOM Snapshot via html-to-image (.html, .md, .docx, .xlsx)
+      if (doc.body) {
+        const iframeWin = tempIframe.contentWindow;
+        const bodyBg = iframeWin ? iframeWin.getComputedStyle(doc.body).backgroundColor : '';
+        const htmlBg = iframeWin ? iframeWin.getComputedStyle(doc.documentElement).backgroundColor : '';
+        const isTransparent = (bg: string) =>
+          !bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)';
+
+        // Preserve explicit page background if present; otherwise default to #ffffff so WebGL never renders black
+        const resolvedBg = !isTransparent(bodyBg)
+          ? bodyBg
+          : !isTransparent(htmlBg)
+            ? htmlBg
+            : '#ffffff';
+
+        // Clone <head> <style> tags into <body> (remapping :root/html to body) so html-to-image keeps CSS rules
+        const styleContainer = doc.createElement('div');
+        doc.querySelectorAll('head style').forEach((styleTag) => {
+          const clonedStyle = doc.createElement('style');
+          clonedStyle.textContent = (styleTag.textContent || '')
+            .replace(/:root\b/g, 'body')
+            .replace(/\bhtml\b/g, 'body');
+          styleContainer.appendChild(clonedStyle);
+        });
+        doc.body.prepend(styleContainer);
+
+        doc.body.style.margin = doc.body.style.margin || '0';
+        doc.body.style.width = '1024px';
+        doc.body.style.minHeight = '1024px';
+        doc.body.style.boxSizing = 'border-box';
+        doc.body.style.backgroundColor = resolvedBg;
+
+        const styledCanvas = await toCanvas(doc.body, {
+          width: 1024,
+          height: 1024,
+          backgroundColor: resolvedBg,
+          pixelRatio: 1,
+          skipFonts: true,
+          imagePlaceholder:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
         });
 
-        const canvasTex = new THREE.CanvasTexture(canvas);
-        canvasTex.colorSpace = THREE.SRGBColorSpace;
-        canvasTex.flipY = false;
-        canvasTex.needsUpdate = true;
-        return canvasTex;
+        const tex = new THREE.CanvasTexture(styledCanvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.flipY = false;
+        tex.needsUpdate = true;
+        return tex;
       }
 
-      // 4. Document Text Snapshot (.md, .docx, .html)
-      const size = 1024;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d')!;
-
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, size, size);
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, size, 64);
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('M1AS SANDBOXED DOCUMENT SNAPSHOT', 40, 40);
-
-      doc.querySelectorAll('script, style, data').forEach((el) => el.remove());
-      const rawText = (doc.body?.textContent || '').trim();
-      const lines = rawText.split(/\r?\n/);
-
-      let cursorY = 115;
-      const maxWidth = size - 80;
-
-      for (const rawLine of lines) {
-        if (cursorY > size - 48) break;
-        const line = rawLine.trim();
-        if (!line) {
-          cursorY += 16;
-          continue;
-        }
-
-        const isHeading = line.length < 60 && !line.endsWith('.');
-        ctx.fillStyle = isHeading ? '#0f172a' : '#334155';
-        ctx.font = isHeading ? 'bold 28px sans-serif' : '22px sans-serif';
-
-        const words = line.split(/\s+/);
-        let currentLine = '';
-        for (const word of words) {
-          const testLine = currentLine ? `${currentLine} ${word}` : word;
-          if (ctx.measureText(testLine).width > maxWidth) {
-            ctx.fillText(currentLine, 40, cursorY);
-            cursorY += isHeading ? 36 : 30;
-            currentLine = word;
-            if (cursorY > size - 48) break;
-          } else {
-            currentLine = testLine;
-          }
-        }
-        if (currentLine && cursorY <= size - 48) {
-          ctx.fillText(currentLine, 40, cursorY);
-          cursorY += isHeading ? 40 : 32;
-        }
-      }
-
-      const canvasTex = new THREE.CanvasTexture(canvas);
-      canvasTex.colorSpace = THREE.SRGBColorSpace;
-      canvasTex.flipY = false;
-      canvasTex.needsUpdate = true;
-      return canvasTex;
+      throw new Error('Preview document body was empty');
     } finally {
-      tempIframe?.remove();
+      tempIframe.remove();
     }
   }
+
 
 
   public async updateFace(slotIndex: number, type: FaceAssetType, value: string, label?: string): Promise<void> {
