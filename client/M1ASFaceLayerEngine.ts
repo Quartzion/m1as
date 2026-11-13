@@ -419,14 +419,15 @@ export class M1ASFaceLayerEngine {
   }
 
 
-  private async renderPreviewToTexture(previewUrl: string, forceSvg = false): Promise<THREE.Texture> {
+   private async renderPreviewToTexture(previewUrl: string, forceSvg = false): Promise<THREE.Texture> {
     const res = await fetch(previewUrl, {
       headers: { 'm1as-user-id': this.userId },
     });
     if (!res.ok) throw new Error(`Preview fetch failed (${res.status})`);
     const html = await res.text();
 
-    if (forceSvg && html.trim().startsWith('<svg')) {
+    // Direct SVG file (handles optional <?xml ...?> prolog or comments before <svg>)
+    if (forceSvg || (html.includes('<svg') && !html.includes('<html'))) {
       return await this.renderSvgStringToTexture(html);
     }
 
@@ -435,7 +436,12 @@ export class M1ASFaceLayerEngine {
     let tempIframe: HTMLIFrameElement | null = null;
 
     try {
-      if (doc.querySelector('.mermaid') && !doc.querySelector('svg')) {
+      // Mount offscreen iframe when client-side scripts must run (Mermaid .mmd OR SheetJS .xlsx)
+      const needsClientExecution =
+        (doc.querySelector('.mermaid') && !doc.querySelector('svg')) ||
+        Boolean(doc.querySelector('#xlsx-data'));
+
+      if (needsClientExecution) {
         tempIframe = document.createElement('iframe');
         tempIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
         tempIframe.style.position = 'fixed';
@@ -448,20 +454,26 @@ export class M1ASFaceLayerEngine {
           tempIframe!.onload = () => {
             const iframeDoc = tempIframe!.contentDocument;
             if (!iframeDoc) return resolve();
-            if (iframeDoc.querySelector('svg')) return setTimeout(resolve, 100);
+
+            // Already rendered synchronously (e.g., inline XLSX script)
+            if (iframeDoc.querySelector('svg') || iframeDoc.querySelector('table')) {
+              return setTimeout(resolve, 100);
+            }
 
             const observer = new MutationObserver(() => {
-              if (iframeDoc.querySelector('svg')) {
+              if (iframeDoc.querySelector('svg') || iframeDoc.querySelector('table')) {
                 observer.disconnect();
                 setTimeout(resolve, 120);
               }
             });
             observer.observe(iframeDoc.body, { childList: true, subtree: true });
+
             setTimeout(() => {
               observer.disconnect();
               resolve();
             }, 3000);
           };
+
           tempIframe!.srcdoc = html;
           document.body.appendChild(tempIframe!);
         });
@@ -577,7 +589,7 @@ export class M1ASFaceLayerEngine {
       ctx.font = 'bold 22px sans-serif';
       ctx.fillText('M1AS SANDBOXED DOCUMENT SNAPSHOT', 40, 40);
 
-      doc.querySelectorAll('script, style').forEach((el) => el.remove());
+      doc.querySelectorAll('script, style, data').forEach((el) => el.remove());
       const rawText = (doc.body?.textContent || '').trim();
       const lines = rawText.split(/\r?\n/);
 
@@ -624,6 +636,7 @@ export class M1ASFaceLayerEngine {
       tempIframe?.remove();
     }
   }
+
 
   public async updateFace(slotIndex: number, type: FaceAssetType, value: string, label?: string): Promise<void> {
     const mat = this.materials[slotIndex];
