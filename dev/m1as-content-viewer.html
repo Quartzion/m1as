@@ -365,7 +365,8 @@
                 const signCopyButton = asset.capabilities?.canStream ? `<button class="sign-btn">Sign URL</button>` : "";
                 const faceAssignSelect = canPaintToFace
                     ? `<select class="face-assign-sel" title="Apply directly to active 3D cube face">
-                           <option value="">Paint Face...</option>
+                           <option value="">Paint Face / BG...</option>
+                           <option value="bg">Scene Background</option>
                            <option value="0">Face 0 (Right)</option>
                            <option value="1">Face 1 (Left)</option>
                            <option value="2">Face 2 (Top)</option>
@@ -408,8 +409,10 @@
                 const faceSel = card.querySelector(".face-assign-sel");
                 if (faceSel) {
                     faceSel.addEventListener("change", async () => {
-                        const slotIdx = Number(faceSel.value);
+                        const rawTarget = faceSel.value;
                         faceSel.value = "";
+                        if (!rawTarget) return;
+
                         if (!activeFaceEngine) {
                             alert("Stream a 3D .glb cube into the playground first!");
                             return;
@@ -443,18 +446,26 @@
                             assetType = "preview";
                         }
 
-                        const insType = document.getElementById(`ins-type-${slotIdx}`);
-                        const insVal = document.getElementById(`ins-val-${slotIdx}`);
-                        const insPicker = document.getElementById(`ins-picker-${slotIdx}`);
+                        const slotKey = rawTarget === "bg" ? "bg" : Number(rawTarget);
+                        const insType = document.getElementById(`ins-type-${slotKey}`);
+                        const insVal = document.getElementById(`ins-val-${slotKey}`);
+                        const insPicker = document.getElementById(`ins-picker-${slotKey}`);
+
                         if (insType && insVal) {
                             const supportedOptions = ["color", "image", "svg-preview", "video", "preview"];
                             insType.value = supportedOptions.includes(assetType) ? assetType : "image";
                             insVal.value = targetUrl;
                             if (insPicker) insPicker.style.display = "none";
                         }
-                        await activeFaceEngine.updateFace(slotIdx, assetType, targetUrl, asset.displayName);
+
+                        if (slotKey === "bg") {
+                            await activeFaceEngine.updateBackground(assetType, targetUrl, asset.displayName);
+                        } else {
+                            await activeFaceEngine.updateFace(slotKey, assetType, targetUrl, asset.displayName);
+                        }
                     });
                 }
+
 
                 assetList.appendChild(card);
 
@@ -522,49 +533,54 @@
             inspector.className = "m1as-visualization-inspector";
             inspector.innerHTML = `<div class="inspector-title"><span>Visualization Layer Face Maps</span></div>`;
 
-            const faceNames = [
-                "Right (0)",
-                "Left (1)",
-                "Top (2)",
-                "Bottom (3)",
-                "Front (4)",
-                "Back (5)"
+            const layerSlots = [
+                { key: "bg", label: "Scene Background", defaultColor: "#18181B" },
+                { key: 0, label: "Right (0)", defaultColor: "#333333" },
+                { key: 1, label: "Left (1)", defaultColor: "#333333" },
+                { key: 2, label: "Top (2)", defaultColor: "#333333" },
+                { key: 3, label: "Bottom (3)", defaultColor: "#333333" },
+                { key: 4, label: "Front (4)", defaultColor: "#333333" },
+                { key: 5, label: "Back (5)", defaultColor: "#333333" }
             ];
 
-            faceNames.forEach((fName, idx) => {
+            layerSlots.forEach((slot) => {
                 const row = document.createElement("div");
                 row.className = "face-slot-row";
+                if (slot.key === "bg") {
+                    row.style.borderColor = "#38bdf8";
+                }
+
                 row.innerHTML = `
-                    <div class="face-label">${fName}</div>
+                    <div class="face-label">${slot.label}</div>
                     <div class="control-flex">
-                        <select id="ins-type-${idx}" class="m1as-select">
+                        <select id="ins-type-${slot.key}" class="m1as-select">
                             <option value="color">Color</option>
                             <option value="image">Image</option>
                             <option value="svg-preview">SVG Vector</option>
                             <option value="video">Video</option>
                             <option value="preview">HTML / Doc</option>
                         </select>
-                        <input type="color" id="ins-picker-${idx}" value="#333333" style="width:28px; height:24px; padding:0; border:none; background:none; cursor:pointer;" />
-                        <input type="text" id="ins-val-${idx}" class="m1as-input-txt" value="#333333" placeholder="#333333" />
+                        <input type="color" id="ins-picker-${slot.key}" value="${slot.defaultColor}" style="width:28px; height:24px; padding:0; border:none; background:none; cursor:pointer;" />
+                        <input type="text" id="ins-val-${slot.key}" class="m1as-input-txt" value="${slot.defaultColor}" placeholder="${slot.defaultColor}" />
                     </div>
                 `;
                 inspector.appendChild(row);
 
-                const typeSel = row.querySelector(`#ins-type-${idx}`);
-                const colorPicker = row.querySelector(`#ins-picker-${idx}`);
-                const valIn = row.querySelector(`#ins-val-${idx}`);
+                const typeSel = row.querySelector(`#ins-type-${slot.key}`);
+                const colorPicker = row.querySelector(`#ins-picker-${slot.key}`);
+                const valIn = row.querySelector(`#ins-val-${slot.key}`);
 
                 const triggerUpdate = () => {
                     const type = typeSel.value;
                     const val = valIn.value.trim();
-                    if (val) onSlotChange(idx, type, val);
+                    if (val) onSlotChange(slot.key, type, val);
                 };
 
                 typeSel.addEventListener("change", () => {
                     if (typeSel.value === "color") {
                         colorPicker.style.display = "inline-block";
                         valIn.value = colorPicker.value.toUpperCase();
-                        valIn.placeholder = "#333333";
+                        valIn.placeholder = slot.defaultColor;
                         triggerUpdate();
                     } else {
                         colorPicker.style.display = "none";
@@ -629,9 +645,14 @@
                     stageSurface.appendChild(actionBadge);
                     wrapper.appendChild(stageSurface);
 
-                    const inspector = buildFaceInspectorPanel((slotIdx, type, val) => {
-                        activeFaceEngine?.updateFace(slotIdx, type, val);
+                    const inspector = buildFaceInspectorPanel((slotKey, type, val) => {
+                        if (slotKey === "bg") {
+                            activeFaceEngine?.updateBackground(type, val);
+                        } else {
+                            activeFaceEngine?.updateFace(slotKey, type, val);
+                        }
                     });
+
                     wrapper.appendChild(inspector);
                     componentStage.appendChild(wrapper);
 

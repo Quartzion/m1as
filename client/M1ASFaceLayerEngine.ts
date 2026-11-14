@@ -37,6 +37,10 @@ export class M1ASFaceLayerEngine {
   private videoElements = new Map<number, HTMLVideoElement>();
   private audioSlots = new Map<number, AudioFaceSlot>();
   private blobUrls = new Map<number, string>();
+  private bgTexture: THREE.Texture | null = null;
+  private bgVideo: HTMLVideoElement | null = null;
+  private bgBlobUrl: string | null = null;
+  private readonly BG_SLOT_ID = -1;
   private audioCtx: AudioContext | null = null;
   private frameId: number | null = null;
   private autoRotate: boolean;
@@ -679,6 +683,94 @@ export class M1ASFaceLayerEngine {
     }
   }
 
+    public cleanupBackground(): void {
+    if (this.bgTexture) {
+      this.bgTexture.dispose();
+      this.bgTexture = null;
+    }
+    if (this.bgVideo) {
+      this.bgVideo.pause();
+      this.bgVideo.src = '';
+      this.bgVideo.load();
+      this.bgVideo = null;
+    }
+    if (this.audioSlots.has(this.BG_SLOT_ID)) {
+      const slot = this.audioSlots.get(this.BG_SLOT_ID)!;
+      slot.audio.pause();
+      slot.audio.src = '';
+      slot.audio.load();
+      this.audioSlots.delete(this.BG_SLOT_ID);
+    }
+    if (this.bgBlobUrl) {
+      URL.revokeObjectURL(this.bgBlobUrl);
+      this.bgBlobUrl = null;
+    }
+    this.scene.background = new THREE.Color(0x18181b);
+  }
+
+  public async updateBackground(type: FaceAssetType, value: string, label?: string): Promise<void> {
+    this.cleanupBackground();
+
+    if (type === 'color') {
+      if (value) this.scene.background = new THREE.Color(value);
+      return;
+    }
+
+    if (!value) return;
+
+    try {
+      if (type === 'preview' || type === 'svg-preview') {
+        const tex = await this.renderPreviewToTexture(value, type === 'svg-preview');
+        this.bgTexture = tex;
+        this.scene.background = tex;
+        return;
+      }
+
+      const safeUrl = value.startsWith('blob:')
+        ? value
+        : await this.fetchAsBlobUrl(this.BG_SLOT_ID, value);
+
+      if (!value.startsWith('blob:')) {
+        this.bgBlobUrl = safeUrl;
+        this.blobUrls.delete(this.BG_SLOT_ID);
+      }
+
+      if (type === 'glb-snapshot') {
+        const snapTex = await this.renderGlbSnapshotToTexture(safeUrl, label || '3D Model');
+        this.bgTexture = snapTex;
+        this.scene.background = snapTex;
+      } else if (type === 'audio') {
+        const audioTex = await this.bindAudioFace(this.BG_SLOT_ID, safeUrl, label || 'M1AS Audio Stream');
+        this.bgTexture = audioTex;
+        this.scene.background = audioTex;
+      } else if (type === 'image') {
+        const loader = new THREE.TextureLoader();
+        loader.load(safeUrl, (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          this.bgTexture = tex;
+          this.scene.background = tex;
+        });
+      } else if (type === 'video') {
+        const video = document.createElement('video');
+        video.src = safeUrl;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        await video.play();
+
+        const videoTex = new THREE.VideoTexture(video);
+        videoTex.colorSpace = THREE.SRGBColorSpace;
+
+        this.bgVideo = video;
+        this.bgTexture = videoTex;
+        this.scene.background = videoTex;
+      }
+    } catch (err) {
+      console.error('[M1ASFaceLayerEngine] Failed to bind scene background:', err);
+    }
+  }
+
+
   public cleanupSlot(slotIndex: number): void {
     const mat = this.materials[slotIndex];
     if (!mat) return;
@@ -735,6 +827,7 @@ export class M1ASFaceLayerEngine {
     for (let i = 0; i < this.materials.length; i++) {
       this.cleanupSlot(i);
     }
+    this.cleanupBackground();
     this.materials.forEach((m) => m.dispose());
     if (this.audioCtx) {
       this.audioCtx.close().catch(() => { });
