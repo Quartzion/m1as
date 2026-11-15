@@ -2,9 +2,21 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { toCanvas } from 'html-to-image';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import 'pdfjs-dist/legacy/build/pdf.worker.mjs';
 
 
-export type FaceAssetType = 'color' | 'image' | 'video' | 'audio' | 'preview' | 'svg-preview' | 'glb-snapshot';
+export type FaceAssetType =
+  | 'color'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'preview'
+  | 'svg-preview'
+  | 'glb-snapshot'
+  | 'text'
+  | 'pdf-snapshot';
+
 
 export interface M1ASEngineOptions {
   userId?: string;
@@ -256,6 +268,169 @@ export class M1ASFaceLayerEngine {
 
     return texture;
   }
+
+  private escapeHtmlText(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private formatJsonHtml(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      const pretty = this.escapeHtmlText(JSON.stringify(parsed, null, 2));
+      return pretty.replace(
+        /(&quot;(?:\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\&])*&quot;(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          if (/^&quot;/.test(match)) {
+            return /:$/.test(match)
+              ? `<span style="color:#38bdf8;font-weight:600;">${match}</span>`
+              : `<span style="color:#a7f3d0;">${match}</span>`;
+          }
+          if (/true|false/.test(match)) return `<span style="color:#fbbf24;">${match}</span>`;
+          if (/null/.test(match)) return `<span style="color:#94a3b8;">${match}</span>`;
+          return `<span style="color:#f472b6;">${match}</span>`;
+        }
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private formatCsvTableHtml(raw: string): string {
+    const lines = raw.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim().length > 0);
+    const maxRows = lines.slice(0, 32);
+    const rowsHtml = maxRows
+      .map((line, rIdx) => {
+        const cells = line.split(',');
+        const tag = rIdx === 0 ? 'th' : 'td';
+        const rowBg = rIdx === 0 ? '#1e293b' : rIdx % 2 === 0 ? '#0f172a' : '#131c31';
+        const cellStyle =
+          rIdx === 0
+            ? 'padding:10px 14px;text-align:left;color:#38bdf8;border-bottom:2px solid #334155;font-weight:700;white-space:nowrap;'
+            : 'padding:8px 14px;color:#e2e8f0;border-bottom:1px solid #1e293b;white-space:nowrap;';
+        const cellsHtml = cells
+          .map((c) => `<${tag} style="${cellStyle}">${this.escapeHtmlText(c.trim())}</${tag}>`)
+          .join('');
+        return `<tr style="background:${rowBg};">${cellsHtml}</tr>`;
+      })
+      .join('');
+
+    return `<table style="width:100%;border-collapse:collapse;font-family:system-ui,-apple-system,sans-serif;font-size:17px;">${rowsHtml}</table>`;
+  }
+
+    private async renderTextToTexture(urlOrText: string, label = 'Text Document'): Promise<THREE.CanvasTexture> {
+    let content = urlOrText;
+
+    if (
+      urlOrText.startsWith('http://') ||
+      urlOrText.startsWith('https://') ||
+      urlOrText.startsWith('/') ||
+      urlOrText.startsWith('blob:')
+    ) {
+      const res = await fetch(urlOrText, { headers: { 'm1as-user-id': this.userId } });
+      if (!res.ok) throw new Error(`Text fetch failed (${res.status})`);
+      content = await res.text();
+    }
+
+    const lowerLabel = label.toLowerCase();
+    const isCsv = lowerLabel.endsWith('.csv');
+    const jsonHtml = this.formatJsonHtml(content);
+    const badge = jsonHtml ? 'JSON' : isCsv ? 'CSV' : 'TXT';
+
+    let bodyMarkup: string;
+    if (jsonHtml) {
+      bodyMarkup = `<pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:19px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#f1f5f9;">${jsonHtml}</pre>`;
+    } else if (isCsv) {
+      bodyMarkup = this.formatCsvTableHtml(content);
+    } else {
+      const clipped = content.length > 6000 ? content.slice(0, 6000) + '\n\n... [truncated for preview]' : content;
+      bodyMarkup = `<pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:20px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:#f1f5f9;">${this.escapeHtmlText(clipped)}</pre>`;
+    }
+
+    const htmlDoc = `<!DOCTYPE html>
+<html>
+<body style="margin:0;width:1024px;height:1024px;background-color:#0f172a;color:#f8fafc;box-sizing:border-box;padding:28px;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="flex:1;display:flex;flex-direction:column;border:2px solid #334155;border-radius:14px;background-color:#0b1120;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 26px;background-color:#1e293b;border-bottom:1px solid #334155;">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+        <span style="background-color:#0076ff;color:#ffffff;font-family:system-ui,sans-serif;font-weight:700;font-size:14px;padding:4px 10px;border-radius:6px;letter-spacing:0.5px;">${badge}</span>
+        <span style="font-family:system-ui,-apple-system,sans-serif;font-weight:600;font-size:20px;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.escapeHtmlText(label)}</span>
+      </div>
+      <span style="font-family:monospace;font-size:14px;color:#94a3b8;">${content.length.toLocaleString()} chars</span>
+    </div>
+    <div style="flex:1;padding:28px 32px;overflow:hidden;">
+      ${bodyMarkup}
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const htmlBlob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(htmlBlob);
+    try {
+      return (await this.renderPreviewToTexture(blobUrl, false)) as THREE.CanvasTexture;
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
+
+    private async renderPdfSnapshotToTexture(pdfUrl: string, label = 'PDF Document'): Promise<THREE.CanvasTexture> {
+    const res = await fetch(pdfUrl, { headers: { 'm1as-user-id': this.userId } });
+    if (!res.ok) throw new Error(`PDF fetch failed (${res.status})`);
+    const arrayBuffer = await res.arrayBuffer();
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      useWorkerFetch: false,
+    });
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+
+    const size = 1024;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = size;
+    outCanvas.height = size;
+    const ctx = outCanvas.getContext('2d')!;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, size, size);
+
+    const baseViewport = page.getViewport({ scale: 1 });
+    const targetArea = size - 96;
+    const scale = Math.min(targetArea / baseViewport.width, targetArea / baseViewport.height);
+    const viewport = page.getViewport({ scale });
+
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = Math.round(viewport.width);
+    pageCanvas.height = Math.round(viewport.height);
+    const pageCtx = pageCanvas.getContext('2d')!;
+
+    await page.render({ canvas: pageCanvas, canvasContext: pageCtx, viewport }).promise;
+
+    const offsetX = (size - pageCanvas.width) / 2;
+    const offsetY = (size - 48 - pageCanvas.height) / 2;
+    ctx.drawImage(pageCanvas, offsetX, offsetY);
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fillRect(0, size - 48, size, 48);
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`PDF SNAPSHOT (Page 1 of ${pdf.numPages}) • ${label}`, size / 2, size - 18);
+
+    const tex = new THREE.CanvasTexture(outCanvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.flipY = false;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+
 
   private renderAudioFrame(slot: AudioFaceSlot): void {
     const { ctx, canvas, audio, analyser, freqData, label, texture } = slot;
@@ -635,6 +810,18 @@ export class M1ASFaceLayerEngine {
     if (!value) return;
 
     try {
+      if (type === 'text') {
+        const tex = await this.renderTextToTexture(value, label || 'Text Document');
+        mat.map = tex;
+        mat.needsUpdate = true;
+        return;
+      }
+      if (type === 'pdf-snapshot') {
+        const tex = await this.renderPdfSnapshotToTexture(value, label || 'PDF Document');
+        mat.map = tex;
+        mat.needsUpdate = true;
+        return;
+      }
       if (type === 'preview' || type === 'svg-preview') {
         const tex = await this.renderPreviewToTexture(value, type === 'svg-preview');
         mat.map = tex;
@@ -716,15 +903,25 @@ export class M1ASFaceLayerEngine {
       return;
     }
 
-    if (!value) return;
+     if (!value) return;
 
     try {
-      if (type === 'preview' || type === 'svg-preview') {
-        const tex = await this.renderPreviewToTexture(value, type === 'svg-preview');
+      if (type === 'text' || type === 'pdf-snapshot' || type === 'preview' || type === 'svg-preview') {
+        const tex =
+          type === 'text'
+            ? await this.renderTextToTexture(value, label || 'Text Document')
+            : type === 'pdf-snapshot'
+              ? await this.renderPdfSnapshotToTexture(value, label || 'PDF Document')
+              : await this.renderPreviewToTexture(value, type === 'svg-preview');
+
+        // Flip canvas textures vertically so they appear right-side-up in scene.background
+        tex.repeat.y = -1;
+        tex.offset.y = 1;
         this.bgTexture = tex;
         this.scene.background = tex;
         return;
       }
+
 
       const safeUrl = value.startsWith('blob:')
         ? value

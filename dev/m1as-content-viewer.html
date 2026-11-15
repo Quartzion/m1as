@@ -354,11 +354,27 @@
                 card.className = "asset-card";
 
                 const mime = (asset.mimeType || "").toLowerCase().trim();
+                const lowerName = (asset.displayName || "").toLowerCase();
+                const isGlb = mime === "model/gltf-binary" || lowerName.endsWith(".glb");
+                const isSvg = mime === "image/svg+xml" || lowerName.endsWith(".svg");
+                const isPdf = mime === "application/pdf" || lowerName.endsWith(".pdf");
+                const isText =
+                    mime === "text/plain" ||
+                    mime === "text/csv" ||
+                    mime === "application/json" ||
+                    lowerName.endsWith(".txt") ||
+                    lowerName.endsWith(".csv") ||
+                    lowerName.endsWith(".json");
+
                 const isStreamTexture =
                     mime.startsWith("image/") ||
                     mime.startsWith("video/") ||
-                    mime.startsWith("audio/");
+                    mime.startsWith("audio/") ||
+                    isPdf ||
+                    isText;
+
                 const canPaintToFace = (asset.capabilities?.canStream && isStreamTexture) || asset.capabilities?.canPreview;
+
 
                 const previewButton = asset.capabilities?.canPreview ? `<button class="preview-btn">Preview</button>` : "";
                 const streamButton = asset.capabilities?.canStream ? `<button class="stream-btn">Stream</button>` : "";
@@ -424,6 +440,15 @@
                         const isSvg =
                             mime === "image/svg+xml" ||
                             (asset.displayName || "").toLowerCase().endsWith(".svg");
+                        const isPdf =
+                            mime === "application/pdf" ||
+                            (asset.displayName || "").toLowerCase().endsWith(".pdf");
+                        const isText =
+                            mime === "text/plain" ||
+                            mime === "text/csv" ||
+                            mime === "application/json" ||
+                            (asset.displayName || "").toLowerCase().endsWith(".txt");
+
 
                         let targetUrl;
                         let assetType;
@@ -436,6 +461,16 @@
                                 ? await getSignedAssetUrl(asset)
                                 : `${API_BASE}/assets/${asset.id}/preview`;
                             assetType = "svg-preview";
+                        } else if (isPdf) {
+                            targetUrl = asset.capabilities?.canStream
+                                ? await getSignedAssetUrl(asset)
+                                : `${API_BASE}/assets/${asset.id}/file`;
+                            assetType = "pdf-snapshot";
+                        } else if (isText) {
+                            targetUrl = asset.capabilities?.canStream
+                                ? await getSignedAssetUrl(asset)
+                                : `${API_BASE}/assets/${asset.id}/preview`;
+                            assetType = "text";
                         } else if (isStreamTexture && asset.capabilities?.canStream) {
                             targetUrl = await getSignedAssetUrl(asset);
                             if (mime.startsWith("video/")) assetType = "video";
@@ -452,7 +487,15 @@
                         const insPicker = document.getElementById(`ins-picker-${slotKey}`);
 
                         if (insType && insVal) {
-                            const supportedOptions = ["color", "image", "svg-preview", "video", "preview"];
+                            const supportedOptions = [
+                                "color",
+                                "text",
+                                "pdf-snapshot",
+                                "image",
+                                "svg-preview",
+                                "video",
+                                "preview"
+                            ];
                             insType.value = supportedOptions.includes(assetType) ? assetType : "image";
                             insVal.value = targetUrl;
                             if (insPicker) insPicker.style.display = "none";
@@ -555,6 +598,8 @@
                     <div class="control-flex">
                         <select id="ins-type-${slot.key}" class="m1as-select">
                             <option value="color">Color</option>
+                            <option value="text">Text</option>
+                            <option value="pdf-snapshot">PDF Snapshot</option>
                             <option value="image">Image</option>
                             <option value="svg-preview">SVG Vector</option>
                             <option value="video">Video</option>
